@@ -6,6 +6,7 @@ pub mod timer;
 use capnp::capability::Promise;
 use capnp_rpc::pry;
 use flume::Sender;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use tag_server_capnp::tagger;
 use tag_server_capnp::JobStatus as CJobStatus;
@@ -104,15 +105,13 @@ pub enum JobMeta {
 
 pub struct TagServerImpl {
     pub cfg: Config,       // Global config
-    pub id: u64,           // Next job gets this id
+    pub id: AtomicU64,     // Next job gets this id
     pub tx: Sender<Event>,
 }
 
 impl TagServerImpl {
     pub fn nextid(&mut self) -> u64 {
-        let id = self.id;
-        self.id += 1;
-        return id;
+        return self.id.fetch_add(1, Ordering::AcqRel);
     }
 }
 

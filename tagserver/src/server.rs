@@ -1,6 +1,7 @@
 use anyhow::Result;
 use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::{AsyncReadExt, FutureExt};
+use std::sync::atomic::AtomicU64;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use crate::{Config, Event, TagServerImpl};
@@ -15,7 +16,7 @@ pub async fn main(
         .run_until(async move {
             let listener = tokio::net::TcpListener::bind(&cfg.addr).await.unwrap();
 
-            let tag_server_impl = TagServerImpl { cfg, id: 1, tx };
+            let tag_server_impl = TagServerImpl { cfg, tx, id: AtomicU64::new(1) };
 
             let tag_client: tagger::Client = capnp_rpc::new_client(tag_server_impl);
 
