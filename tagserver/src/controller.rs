@@ -3,7 +3,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use tagtools::CHAN16;
-use timetag::ffi::new_logic_counter;
+use timetag::ffi::{new_logic_counter, LogicCounter};
+use cxx::SharedPtr;
 
 use crate::{Config, Event, GetImpl, Job, JobPayload, QueryImpl};
 
@@ -11,37 +12,22 @@ use crate::tag_server_capnp::JobStatus as CJobStatus;
 
 #[derive(Clone)]
 struct JobManager {
-    waiting: Rc<RefCell<HashMap<u64, Job>>>,
-    ready: Rc<RefCell<HashMap<u64, Job>>>,
-    cancelled: Rc<RefCell<Vec<u64>>>,
-    claimed: Rc<RefCell<Vec<u64>>>,
-    cur_pats: Rc<RefCell<HashMap<u16, HashSet<u64>>>>, // patterns and their subscribing jobs
+    waiting: HashMap<u64, Job>,
+    ready: HashMap<u64, Job>,
+    cancelled: Vec<u64>,
+    claimed: Vec<u64>,
+    cur_pats: HashMap<u16, HashSet<u64>>, // patterns and their subscribing jobs
 }
 
 impl JobManager {
     pub fn new() -> Self {
         JobManager {
-            waiting: Rc::new(RefCell::new(HashMap::new())),
-            ready: Rc::new(RefCell::new(HashMap::new())),
-            cancelled: Rc::new(RefCell::new(Vec::new())),
-            claimed: Rc::new(RefCell::new(Vec::new())),
-            cur_pats: Rc::new(RefCell::new(HashMap::new())),
+            waiting: HashMap::new(),
+            ready: HashMap::new(),
+            cancelled: Vec::new(),
+            claimed: Vec::new(),
+            cur_pats: HashMap::new(),
         }
-    }
-}
-
-
-fn query_status(m: &JobManager, id: u64) -> CJobStatus {
-    if m.waiting.borrow().contains_key(&id) {
-        return CJobStatus::Waiting;
-    } else if m.ready.borrow().contains_key(&id) {
-        return CJobStatus::Ready;
-    } else if m.cancelled.borrow().contains(&id) {
-        return CJobStatus::Cancelled;
-    } else if m.claimed.borrow().contains(&id) {
-        return CJobStatus::Claimed;
-    } else {
-        return CJobStatus::Badid;
     }
 }
 
@@ -51,82 +37,130 @@ pub fn logic(_cfg: Config, rx: flume::Receiver<Event>) -> Result<()> {
     for ch in CHAN16 {
         t.set_input_threshold(ch, 2.0);
     }
+    t.set_fg(200_000, 100_000);
     t.switch_logic_mode();
-    let m = JobManager::new();
-    loop {
-        match rx.recv() {
-            Ok(Event::Tick) => {
-                t.read_logic();
-                let dur = t.get_time_counter();
-                for (pat, subs) in m.cur_pats.clone().borrow().iter() {
-                    let counts = t.calc_count_pos(*pat);
-                    for sub in subs {
-                        if let Some(job) = m.waiting.clone().borrow_mut().get_mut(sub) {
-                            if job.started == true {
-                                if let Some(i) = job.patterns.iter().position(|x| x == pat) {
-                                    job.events[i] += counts as u64;
-                                }
-                            }
-                        }
-                    }
-                }
-                let w_ptr = m.waiting.clone();
-                let mut w = w_ptr.borrow_mut();
-                let r_ptr = m.ready.clone();
-                let mut r = r_ptr.borrow_mut();
-                let mut readylist: Vec<u64> = Vec::new();
-                for (id, job) in w.iter_mut() {
-                    match job.started {
-                        false => job.started = true, // start new jobs on full tick period
-                        true => {
-                            job.duration += dur;
-                            job.cycles -= 1;
-                            if job.cycles == 0 {
-                                readylist.push(*id);
-                            }
-                        },
-                    }
-                }
-                for rid in readylist {
-                    if let Some(job) = w.remove(&rid) {
-                        r.insert(rid, job);
-                    }
-                }
-            }
-            Ok(Event::Work(job)) => {
-                let w_ptr = m.waiting.clone();
-                let mut w = w_ptr.borrow_mut();
-                if w.contains_key(&job.id) == false {
-                    for pat in &job.patterns {
-                        let hm_ptr = m.cur_pats.clone();
-                        let mut hm = hm_ptr.borrow_mut();
-                        match hm.get_mut(pat) {
-                            Some(hs) => {
-                                hs.insert(job.id);
-                            }
-                            None => {
-                                let mut hs = HashSet::new();
-                                hs.insert(job.id);
-                                hm.insert(pat.to_owned(), hs);
-                            }
-                        }
-                    }
-                    w.insert(job.id, job);
-                }
-            }
-            Ok(Event::Query(QueryImpl { id, tx })) => {
-                tx.send(query_status(&m, id))?;
-            }
-            Ok(Event::Get(GetImpl { id, tx })) => {
-                if let Some(job) = m.ready.clone().borrow_mut().remove(&id) {
-                    m.claimed.clone().borrow_mut().push(id);
-                    tx.send(JobPayload::Payload(job))?;
-                } else {
-                    tx.send(JobPayload::BadQuery(query_status(&m, id)))?;
-                }
-            }
-            Err(_) => break,
+    let m = Rc::new(RefCell::new(JobManager::new()));
+    loop { match rx.recv() {
+        Ok(Event::Tick) => {
+            t.clone().read_logic();
+            update_subs(Rc::clone(&m), t.clone());
+            add_duration(Rc::clone(&m), t.clone());
+            reap_ready_jobs(Rc::clone(&m));
+            activate_new_jobs(Rc::clone(&m));
+            update_patterns(Rc::clone(&m));
         }
+        Ok(Event::Work(job)) => {
+            add_job(Rc::clone(&m), job);
+            update_patterns(Rc::clone(&m));
+        }
+        Ok(Event::Query(QueryImpl { id, tx })) => {
+            tx.send(query_status(Rc::clone(&m), id))?;
+        }
+        Ok(Event::Get(GetImpl { id, tx })) => {
+            ship_job(Rc::clone(&m), id, tx)?;
+        }
+        Err(_) => break,
+    }}
+    Ok(())
+}
+
+
+fn query_status(m: Rc<RefCell<JobManager>>, id: u64) -> CJobStatus {
+    let mgr = m.borrow();
+    if mgr.waiting.contains_key(&id) {
+        return CJobStatus::Waiting;
+    } else if mgr.ready.contains_key(&id) {
+        return CJobStatus::Ready;
+    } else if mgr.cancelled.contains(&id) {
+        return CJobStatus::Cancelled;
+    } else if mgr.claimed.contains(&id) {
+        return CJobStatus::Claimed;
+    } else {
+        return CJobStatus::Badid;
+    }
+}
+
+fn update_subs(m: Rc<RefCell<JobManager>>, t: SharedPtr<LogicCounter>) {
+    let mut mgr = RefCell::borrow_mut(&m);
+    for (pat, subs) in mgr.cur_pats.clone() {
+        let cts = t.calc_count_pos(pat);
+        for sub in subs {
+            if let Some(job) = mgr.waiting.get_mut(&sub) {
+                if job.started {
+                    if let Some(i) = job.patterns.iter().position(|&x| x == pat) {
+                        match job.events.get_mut(i) {
+                            Some(ct) => *ct += cts as u64,
+                            None => eprintln!("Tried to access missing event {}", i),
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn add_duration(m: Rc<RefCell<JobManager>>, t: SharedPtr<LogicCounter>) {
+    let dur = t.get_time_counter();
+    let mut mgr = RefCell::borrow_mut(&m);
+    for (_, job) in mgr.waiting.iter_mut() {
+        if job.started {
+            job.duration += dur;
+            job.cycles -= 1;
+        }
+    }
+}
+
+fn reap_ready_jobs(m: Rc<RefCell<JobManager>>) {
+    let mut mgr = RefCell::borrow_mut(&m);
+    for (id, job) in mgr.waiting.clone() {
+        if job.cycles == 0 {
+            let rj = mgr.waiting.remove(&id).unwrap();
+            mgr.ready.insert(id, rj);
+        }
+    }
+}
+
+fn activate_new_jobs(m: Rc<RefCell<JobManager>>) {
+    let mut mgr = RefCell::borrow_mut(&m);
+    for (_, job) in mgr.waiting.iter_mut() {
+        if !job.started {
+            job.started = true;
+        }
+    }    
+}
+
+fn add_job(m: Rc<RefCell<JobManager>>, job: Job) {
+    let mut mgr = RefCell::borrow_mut(&m);
+    if mgr.waiting.contains_key(&job.id) == false {
+        mgr.waiting.insert(job.id, job);
+    }
+}
+
+fn update_patterns(m: Rc<RefCell<JobManager>>) {
+    let mut mgr = RefCell::borrow_mut(&m);
+    for (id, job) in mgr.waiting.clone() {
+        for pat in job.patterns {
+            match mgr.cur_pats.get_mut(&pat) {
+                Some(hs) => {
+                    hs.insert(id);
+                }
+                None => {
+                    let mut hs = HashSet::new();
+                    hs.insert(id);
+                    mgr.cur_pats.insert(pat, hs);
+                }
+            }
+        }
+    }
+}
+
+fn ship_job(m: Rc<RefCell<JobManager>>, id: u64, tx: flume::Sender<JobPayload>) -> Result<()> {
+    let mut mgr = RefCell::borrow_mut(&m);
+    if let Some(job) = mgr.ready.remove(&id) {
+        mgr.claimed.push(id);
+        tx.send(JobPayload::Payload(job))?;
+    } else {
+        tx.send(JobPayload::BadQuery(query_status(Rc::clone(&m), id)))?;
     }
     Ok(())
 }

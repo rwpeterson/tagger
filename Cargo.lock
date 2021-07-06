@@ -767,6 +767,7 @@ dependencies = [
  "anyhow",
  "capnp",
  "capnp-rpc",
+ "cxx",
  "flume",
  "futures",
  "parking_lot",

@@ -14,13 +14,16 @@ pub async fn main(
 
     tokio::task::LocalSet::new()
         .run_until(async move {
-            let listener = tokio::net::TcpListener::bind(&cfg.addr).await.unwrap();
+            let addr = cfg.addr;
+            let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+            println!("listening on {}", addr);
 
             let tag_server_impl = TagServerImpl { cfg, tx, id: AtomicU64::new(1) };
 
             let tag_client: tagger::Client = capnp_rpc::new_client(tag_server_impl);
 
             loop {
+                
                 let (stream, _) = listener.accept().await.unwrap();
                 stream.set_nodelay(true).unwrap();
                 let (reader, writer) = TokioAsyncReadCompatExt::compat(stream).split();

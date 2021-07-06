@@ -138,6 +138,7 @@ impl tagger::Server for TagServerImpl {
             Event::Work(Job {
                 id,
                 patterns: pry!(job_rdr.get_patterns()).iter().collect(),
+                events: vec![0; pry!(job_rdr.get_patterns()).len() as usize],
                 // window: default for now
                 cycles: if dur < period {
                     1

@@ -15,10 +15,16 @@ async fn main() -> Result<()> {
 
     let (tx_sync, rx_sync) = flume::unbounded();
 
+    println!("starting timer");
     timer::main(cfg, tx_sync.clone())?;
 
-    controller::logic(cfg, rx_sync)?;
+    println!("starting controller");
+    std::thread::spawn(move || -> Result<()> {
+        controller::logic(cfg, rx_sync)?;
+        Ok(())
+    });
 
+    println!("starting server");
     server::main(cfg, tx_sync.clone()).await?;
 
     Ok(())
