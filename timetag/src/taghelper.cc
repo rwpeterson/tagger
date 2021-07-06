@@ -137,8 +137,8 @@ auto TimeTagger::use_10MHz(bool b) const -> void {
     impl->Use10MHz(b);
 }
 
-auto new_time_tagger() -> std::unique_ptr<TimeTagger> {
-    return std::make_unique<TimeTagger>();
+auto new_time_tagger() -> std::shared_ptr<TimeTagger> {
+    return std::make_shared<TimeTagger>();
 }
 
 LogicCounter::LogicCounter()
@@ -236,8 +236,8 @@ auto LogicCounter::use_10MHz(bool b) const -> void {
     impl_tti->Use10MHz(b);
 }
 
-std::unique_ptr<LogicCounter> new_logic_counter() {
-    return std::make_unique<LogicCounter>();
+std::shared_ptr<LogicCounter> new_logic_counter() {
+    return std::make_shared<LogicCounter>();
 }
 
 } // namespace TimeTag

@@ -133,7 +133,7 @@ pub mod ffi {
         fn use_10MHz(self: &TimeTagger, b: bool) -> ();
 
         // Wrappers for helper functions
-        fn new_time_tagger() -> UniquePtr<TimeTagger>;
+        fn new_time_tagger() -> SharedPtr<TimeTagger>;
 
         // Helper class wrapping vendor's CLogic
         type LogicCounter;
@@ -166,7 +166,7 @@ pub mod ffi {
         // timetag methods removed
         fn use_10MHz(self: &LogicCounter, b: bool) -> ();
 
-        fn new_logic_counter() -> UniquePtr<LogicCounter>;
+        fn new_logic_counter() -> SharedPtr<LogicCounter>;
     }
 }
 

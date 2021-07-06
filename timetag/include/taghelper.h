@@ -59,7 +59,7 @@ private:
     std::unique_ptr<TimeType*> t;
 };
 
-std::unique_ptr<TimeTagger> new_time_tagger();
+std::shared_ptr<TimeTagger> new_time_tagger();
 
 class LogicCounter {
 public:
@@ -99,6 +99,6 @@ private:
     std::unique_ptr<CLogic> impl;
 };
 
-std::unique_ptr<LogicCounter> new_logic_counter();
+std::shared_ptr<LogicCounter> new_logic_counter();
 
 } // namespace TimeTag
