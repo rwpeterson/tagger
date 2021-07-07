@@ -1,6 +1,6 @@
 @0xd93f59c43d195eec;
 
-using Tags = import "tags.capnp";
+using Tags = import "tags.capnp".Tags;
 
 struct Job {
     id         @0 :UInt64        =0;     # Job id
@@ -68,11 +68,13 @@ interface Tagger {
     getresults   @3 (jobid :UInt64) -> (payload :JobPayload);
 }
 
-# Over-network tag streaming
-# Warning: This will likely only work on gigabit lan or localhost
+# Over-network tag and pattern streaming
+# Warning: This will likely only work on gigabit lan or localhost in tag mode
 # Note: Conveniently, this follows the capnproto-rust pubsub example
 # exactly. We intend this for tags but because of the generic parameter
 # we can use it for anything.
+# See also https://stackoverflow.com/a/41691580 on different ways to implement
+# this in Cap'n Proto (the capnproto-rust example follows the Callback method).
 
 interface Subscription {}
 
@@ -80,11 +82,33 @@ interface Publisher(T) {
     # Drop subscription to signal subscriber is no longer interested in receiving messages
     subscribe @0
         ( subscriber :Subscriber(T)
-        , chans :List(UInt8)
+        , services :ServiceSub
         ) -> (subscription: Subscription);
 }
 
 interface Subscriber(T) {
     # Subscriber should return from this message when it is ready to process the next one
     pushMessage @0 (message :T) -> ();
+}
+
+struct ServiceSub {
+    tagmask  @0 :UInt16;
+    patmasks @1 :List(UInt16);
+}
+
+struct ServicePub {
+    tags @0 :TagPattern;
+    pats @1 :List(LogicPattern);
+}
+
+struct TagPattern {
+    tagmask  @0 :UInt16;
+    duration @1 :UInt64;
+    tags     @2 :Tags;
+}
+
+struct LogicPattern {
+    mask     @0 :UInt16;
+    count    @1 :UInt64;
+    duration @2 :UInt64;
 }
