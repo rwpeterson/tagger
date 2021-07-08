@@ -92,7 +92,7 @@ interface Subscriber(T) {
 }
 
 struct ServiceSub {
-    tagmask  @0 :UInt16;
+    tagmask  @0 :UInt16 = 0;
     patmasks @1 :List(UInt16);
 }
 
@@ -108,7 +108,7 @@ struct TagPattern {
 }
 
 struct LogicPattern {
-    mask     @0 :UInt16;
-    count    @1 :UInt64;
-    duration @2 :UInt64;
+    patmask  @0 :UInt16;
+    duration @1 :UInt64;
+    count    @2 :UInt64;
 }

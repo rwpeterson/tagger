@@ -15,6 +15,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+name = "bit-iter"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2c15a219fd07fb0d74edd64c30ecb533b489dc9b3e605a07e3f9f86488c91a0"
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -805,6 +811,7 @@ name = "tagtools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bit-iter",
  "capnp",
  "csv",
  "itertools",

@@ -1,7 +1,4 @@
-pub mod tag_server_capnp;
-pub mod tags_capnp;
-pub mod client;
-pub mod server;
+use streamer::{client, server};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

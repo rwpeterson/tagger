@@ -3464,11 +3464,11 @@ pub mod logic_pattern {
       self.reader.get_data_field::<u16>(0)
     }
     #[inline]
-    pub fn get_count(self) -> u64 {
+    pub fn get_duration(self) -> u64 {
       self.reader.get_data_field::<u64>(1)
     }
     #[inline]
-    pub fn get_duration(self) -> u64 {
+    pub fn get_count(self) -> u64 {
       self.reader.get_data_field::<u64>(2)
     }
   }
@@ -3530,19 +3530,19 @@ pub mod logic_pattern {
       self.builder.set_data_field::<u16>(0, value);
     }
     #[inline]
-    pub fn get_count(self) -> u64 {
+    pub fn get_duration(self) -> u64 {
       self.builder.get_data_field::<u64>(1)
     }
     #[inline]
-    pub fn set_count(&mut self, value: u64)  {
+    pub fn set_duration(&mut self, value: u64)  {
       self.builder.set_data_field::<u64>(1, value);
     }
     #[inline]
-    pub fn get_duration(self) -> u64 {
+    pub fn get_count(self) -> u64 {
       self.builder.get_data_field::<u64>(2)
     }
     #[inline]
-    pub fn set_duration(&mut self, value: u64)  {
+    pub fn set_count(&mut self, value: u64)  {
       self.builder.set_data_field::<u64>(2, value);
     }
   }
