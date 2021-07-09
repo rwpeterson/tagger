@@ -1,15 +1,13 @@
-//! `tcat [INPUT]`
+//! `txt2tags [INPUT]`
 //!
-//! Decode time tags in .tags.zst compressed binary format and output
-//! tab-separated tags. `tcat` is named in analogy to programs like `zcat`
-//! that output (cf. `cat`) the decompressed content of a file.
+//! Encode time tags in `.tags.zst` compressed binary format from
+//! tab-separated tags.
 //!
 //! Most likely, you want the shell one-liner
 //!
-//!     tcat mydata.tags.zst > mydata.tsv
+//!     txt2tags mydata.txt > mydata.tags.zst
 //!
-//! to convert the compressed binary format to tab-separated values for
-//! the widest data interopability.
+//! to convert tab-separated data to the compressed binary format
 
 use tagtools::{ser, de};
 
