@@ -51,16 +51,24 @@ pub mod msg {
         {
             let message_builder = message.init_root::<tags::Builder>();
 
-            // Cap'n Proto lists are limited to a max of 2^29 elements, and
-            // additionally for struct lists, to a max of 2^29 words of data.
-            // Since each Tag is two words, we can store 2^28 Tags per List.
-            let full_lists: u32 = (tags.len() / 2usize.pow(28)) as u32;
-            let remainder: u32 = (tags.len() % 2usize.pow(28)) as u32;
+            // Cap'n Proto `struct_list`s are limited to a max of 2^29 - 1 words of data,
+            // or a hair under 4 GiB. The last 64 bits are a "tag word" pointer at the
+            // beginning of the encoded `struct_list` describing the individual list
+            // elements. Since each Tag is two words, we can store 2^27 Tags per List.
+            // But, by using a List(List(Tag)), we can overcome this size limitation.
+            // `list_list` of Tag tops out at ~ 2 EiB, while the maximum Cap'n Proto
+            // filesize overall is ~ 16 EiB.
+            let exp: u32 = 27;
+            let full_lists: u32 = (tags.len() / 2usize.pow(exp)) as u32;
+            let remainder:  u32 = (tags.len() % 2usize.pow(exp)) as u32;
+            let lists: u32 = if remainder > 0 {
+                full_lists + 1
+            } else {
+                full_lists
+            };
 
-            let mut tags_builder = message_builder.init_tags(
-                if remainder > 0 { full_lists + 1 } else { full_lists }
-            );
-            for (i, chunk) in tags.chunks(2usize.pow(29)).enumerate() {
+            let mut tags_builder = message_builder.init_tags(lists);
+            for (i, chunk) in tags.chunks(2usize.pow(exp)).enumerate() {
                 let mut chunk_builder = tags_builder.reborrow().init(i as u32, chunk.len() as u32);
                 for (j, tag) in chunk.iter().enumerate() {
                     let mut tag_builder = chunk_builder

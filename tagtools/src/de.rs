@@ -4,6 +4,7 @@ use crate::tags_capnp::tags;
 use crate::{Bin, Tag};
 use anyhow::Result;
 use capnp::serialize;
+use capnp::message::ReaderOptions;
 use std::io::{BufReader, Read};
 use std::vec::Vec;
 use zstd::stream;
@@ -29,8 +30,16 @@ pub fn tags(rdr: impl Read) -> Result<Vec<Tag>> {
 pub fn tags_uncompressed(rdr: &mut impl Read) -> Result<Vec<Tag>> {
     let mut brdr = BufReader::new(rdr);
     let mut tags: Vec<Tag> = Vec::new();
+
+    // Traversal limit is 64 MiB by default as a simple DoS mitigation.
+    // To read in arbitrarily-large datasets, we need to disable this.
+    let rdr_opts = ReaderOptions{
+        traversal_limit_in_words: None,
+        ..Default::default()
+    };
+
     while let Some(message_reader) =
-        serialize::try_read_message(&mut brdr, capnp::message::ReaderOptions::new())?
+        serialize::try_read_message(&mut brdr, rdr_opts)?
     {
         let tags_reader = message_reader.get_root::<tags::Reader>()?;
 

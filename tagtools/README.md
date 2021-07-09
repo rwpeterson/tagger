@@ -2,42 +2,15 @@
 
 A set of time tag analysis tools in Rust
 
-## How to install
+## Tests
 
-Clone the repository and install locally:
+Some integration tests, like those that ensure large amounts of tags
+(4 GiB and 16 GiB) are correctly serialized and deserialized, are very
+time-consuming to run. They are decorated with `#[ignore]`, and are not
+run by default. One can opt-in to testing them along with the others
+like so:
 
-    git clone https://git.sr.ht/~rwp/tagtools-rs
-    cd tagtools-rs
-    cargo install --path .
-
-If you do not have
-a Rust toolchain and `cargo` installed,
-see the [rustup](https://rustup.rs/) website.
-
-## Development
-
-If you want to hack on the crate,
-recall that `cargo build` produces debug binaries.
-For performance-intensive tasks,
-it's better to experiment with release binaries:
-
-    cargo build --release
-    ./target/release/tsv2hist 1 3 14 -64 64 /path/to/my/tags.tsv
-
-## Included tools
-
-### `tsv2hist`
-
-    tsv2hist win ch_a ch_b min_delay max_delay [tags.tsv]
-
-Take a standard csv file
-(really, *tab*-separated values
-of channel and time
-by our convention),
-and output newline-separated histogram to stdout.
-All window and delay parameters
-are integers in units of the tag resolution.
-
-For now, it seems faster
-to pipe the tsv into `tsv2hist`,
-rather than specifying a filename.
+```sh
+cargo test -p tagtools                # normal
+cargo test -p tagtools -- --ignored   # runs "ignored" tests too
+```
