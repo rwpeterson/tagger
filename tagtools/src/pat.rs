@@ -7,13 +7,13 @@ use std::cmp;
 use std::collections::{HashMap, VecDeque};
 
 /// Count number of events in a given channel.
-pub fn singles(tags: &[Tag], ch: u8) -> usize {
+pub fn singles(tags: &[Tag], ch: u8) -> u64 {
     let n = tags.iter().filter(|&&t| t.channel == ch).count();
-    return n;
+    return n as u64;
 }
 
 /// Count coincidences at a fixed delay
-pub fn coincidence(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> usize {
+pub fn coincidence(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> u64 {
     // Ensure delay is commensurate with the windowing we do when pushing into
     // the deque later
     let delay_win = delay / win;
@@ -86,7 +86,7 @@ pub fn coincidence(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> us
             }
         }
     }
-    return count;
+    return count as u64;
 }
 
 /// Count arbitrary patterns at a fixed delay per channel
@@ -157,11 +157,11 @@ pub fn coincidence_histogram(
     ch_b: u8,
     min_delay: i64,
     max_delay: i64,
-) -> Vec<usize> {
+) -> Vec<u64> {
     let mut tag_iter = tags.iter().peekable();
 
     // Histogram stores bins of a given window size, not the time resolution
-    let mut histogram: Vec<usize> = vec![0; ((max_delay - min_delay) / win) as usize + 1];
+    let mut histogram: Vec<u64> = vec![0; ((max_delay - min_delay) / win) as usize + 1];
 
     // Note below that tags are binned into windows when pushed onto the buffer
     let mut buffer: VecDeque<Tag> =
