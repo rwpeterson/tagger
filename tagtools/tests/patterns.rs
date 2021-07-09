@@ -1,3 +1,4 @@
+use std::{collections::HashMap, hash::Hash};
 use tagtools::pat;
 
 mod common;
@@ -8,6 +9,22 @@ fn singles() {
     assert_eq!(pat::singles(&tags,  3), 223_058);
     assert_eq!(pat::singles(&tags, 15), 251_662);
     assert_eq!(pat::singles(&tags, 16),  25_280);
+}
+
+#[test]
+fn singles_arb() {
+    let tags = common::load_test_data();
+    let mut proofs = HashMap::<u16, u64>::new();
+    proofs.insert(1 << 2, 223_058);
+    proofs.insert(1 << 14, 51_662);
+    proofs.insert(1 << 15, 25_280);
+    
+    let delays = [0; 16];
+    let pats = proofs.keys().cloned().collect::<Vec<_>>();
+    let hashmap = pat::patterns(&tags, &pats, 1, delays);
+    for (pat, cts) in proofs {
+        assert_eq!(hashmap.get(&pat).unwrap(), &cts);
+    }
 }
 
 #[test]
