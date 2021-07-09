@@ -30,6 +30,9 @@ impl subscriber::Server<service_pub::Owned> for SubscriberImpl {
                     tags.push(Tag { time: tag.get_time(), channel: tag.get_channel() } );
                 }
             }
+            for tag in tags {
+                println!(" T {0} Ch {1}", tag.time, tag.channel);
+            }
         }
         if pry!(pry!(params.get()).get_message()).has_pats() {
             for lpat in pry!(pry!(pry!(params.get()).get_message()).get_pats()) {
@@ -69,7 +72,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         request.get().reborrow().set_subscriber(sub);
         let sbdr = request.get().init_services();
         let mut pbdr = sbdr.init_patmasks(1);
-        pbdr.set(0, 1);
+        pbdr.set(0, 2);
 
         // Need to make sure not to drop the returned subscription object.
         futures::future::try_join(rpc_system, request.send().promise).await?;

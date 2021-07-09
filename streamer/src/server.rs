@@ -158,7 +158,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // controller data sharing
     let data = Arc::new(Mutex::new(PubData {
         duration: 0,
-        tags: Vec::new(),
+        tags: Box::new(capnp::message::Builder::new_default()),
         patcounts: HashMap::new(),
     }));
 
@@ -182,13 +182,16 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             // spawn controller thread
             let (tx_pub, rx_pub) = flume::unbounded::<()>();
-            crate::controller::main(
-                data.clone(),
-                cur_tagmask.clone(),
-                cur_patmasks.clone(),
-                rx_timer,
-                tx_pub
-            )?;
+            let data1 = data.clone();
+            std::thread::spawn( move || {
+                crate::controller::main(
+                    data1,
+                    cur_tagmask.clone(),
+                    cur_patmasks.clone(),
+                    rx_timer,
+                    tx_pub,
+                ).unwrap();
+            });
 
             let handle_incoming = async move {
                 loop {
@@ -219,12 +222,26 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let mut request = subscriber.client.push_message_request();
 
                             let mut msg = capnp::message::Builder::new_default();
-                            let msg_bdr = msg.init_root::<service_pub::Builder>();
-                            let mut pat_bdr = msg_bdr.init_pats(1);
-                            pat_bdr.reborrow().get(0).set_mask(1);
-                            pat_bdr.reborrow().get(0).set_count(69);
-                            pat_bdr.reborrow().get(0).set_duration(420);
+                            let mut msg_bdr = msg.init_root::<service_pub::Builder>();
+
+                            let data1 = data.clone();
+                            let data = data1.lock();
+
+                            let mut tag_bdr = msg_bdr.reborrow().init_tags();
+                            tag_bdr.reborrow().set_duration(data.duration);
+                            tag_bdr.reborrow().set_tagmask(u16::MAX);
+                            tag_bdr.reborrow().set_tags(data.tags.get_root_as_reader()?)?;
+
+                            let mut pats_bdr = msg_bdr.init_pats(data.patcounts.len() as u32);
+                            for (i, (&pat, &ct)) in data.patcounts.iter().enumerate() {
+                                let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
+                                pat_bdr.reborrow().set_mask(pat);
+                                pat_bdr.reborrow().set_duration(data.duration);
+                                pat_bdr.reborrow().set_count(ct);
+                            }
+
                             request.get().set_message(msg.get_root_as_reader()?)?;
+
                             let subscribers2 = subscribers1.clone();
                             tokio::task::spawn_local(Box::pin(request.send().promise.map(
                                 move |r| match r {

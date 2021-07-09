@@ -7,6 +7,7 @@ use tagtools::pat;
 use timetag::ffi::{new_time_tagger, FfiTag};
 
 use crate::data::PubData;
+use crate::tags_capnp::tags;
 
 pub fn main(
     data: Arc<Mutex<PubData>>,
@@ -20,6 +21,7 @@ pub fn main(
     for ch in CHAN16 {
         t.set_input_threshold(ch, 2.0);
     }
+    t.set_fg(200_000, 100_000);
     t.start_timetags();
     t.freeze_single_counter();
     while let Ok(()) = rx.recv() {
@@ -38,7 +40,29 @@ pub fn main(
         let patmasks = (*ps).clone();
 
         let mut data = data.lock();
-        data.tags = (&tags.clone()).to_vec();
+        { // copypasta from tagtools::ser
+            let message_builder = data.tags.init_root::<tags::Builder>();
+
+            // Cap'n Proto lists are limited to a max of 2^29 elements, and
+            // additionally for struct lists, to a max of 2^29 words of data.
+            // Since each Tag is two words, we can store 2^28 Tags per List.
+            let full_lists: u32 = (tags.len() / 2usize.pow(28)) as u32;
+            let remainder: u32 = (tags.len() % 2usize.pow(28)) as u32;
+
+            let mut tags_builder = message_builder.init_tags(
+                if remainder > 0 { full_lists + 1 } else { full_lists }
+            );
+            for (i, chunk) in tags.chunks(2usize.pow(29)).enumerate() {
+                let mut chunk_builder = tags_builder.reborrow().init(i as u32, chunk.len() as u32);
+                for (j, tag) in chunk.iter().enumerate() {
+                    let mut tag_builder = chunk_builder
+                        .reborrow()
+                        .get(j as u32);
+                    tag_builder.set_time(tag.time);
+                    tag_builder.set_channel(tag.channel)
+                }
+            }
+        }
         data.patcounts = pat::patterns(
             &tags.clone(),
             &patmasks.into_iter().collect::<Vec<_>>(),
