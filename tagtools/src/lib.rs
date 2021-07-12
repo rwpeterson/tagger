@@ -13,7 +13,7 @@ pub struct Tag {
 }
 
 /// Representation for two-dimensional data like histograms, etc.
-#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct Bin<T, U>
 where 
     T: std::str::FromStr,
