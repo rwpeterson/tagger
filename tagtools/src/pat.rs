@@ -94,7 +94,6 @@ pub fn patterns(tags: &[Tag], pats: &[u16], win: i64, delays: [i64; 16]) -> Hash
     // Time-related values are signed to avoid ubiquitous checking during casting,
     // but the following need to be nonnegative:
     assert!(win >= 0);
-    assert!(delays.iter().map(|d| !d.is_negative()).fold(true, |a, d| a & d));
 
     // Delay, bin, and re-sort the tags
     // After this point, tags are coincident if their times are identical
@@ -123,13 +122,14 @@ pub fn patterns(tags: &[Tag], pats: &[u16], win: i64, delays: [i64; 16]) -> Hash
     }
 
     while !buffer.is_empty() {
-        if let Some(t0) = buffer.pop_front() {
+        if let Some(&t0) = buffer.front() {
             // Fill buffer with tags at same time
             buffer.extend(
                 tag_iter.peeking_take_while(|&&t| t.time == t0.time)
             );
             // Drain buffer into pattern mask to check against
             let mask = buffer.drain(..).fold(0u16, |a, t| 1 << (t.channel - 1) | a);
+            assert!(buffer.is_empty());
             for pat in pats {
                 if *pat & mask == *pat {
                     if let Some(c) = counts.get_mut(pat) {
@@ -139,13 +139,32 @@ pub fn patterns(tags: &[Tag], pats: &[u16], win: i64, delays: [i64; 16]) -> Hash
             }
         }
         // Don't leave buffer empty for the next loop
-        if buffer.is_empty() {
-            if let Some(&t) = tag_iter.next() {
-                buffer.push_back(t);
-            }
+        if let Some(&t) = tag_iter.next() {
+            buffer.push_back(t);
         }
     }
     return counts;
+}
+
+/// Basis for a faster general comparison?
+pub fn intersection(a: &[u32], b: &[u32]) -> usize {
+    // https://stackoverflow.com/a/56265037
+    let mut count = 0;
+    let mut b_iter = b.iter();
+    if let Some(mut current_b) = b_iter.next() {
+        for current_a in a {
+            while current_b < current_a {
+                current_b = match b_iter.next() {
+                    Some(current_b) => current_b,
+                    None => return count,
+                };
+            }
+            if current_a == current_b {
+                count += 1;
+            }
+        }
+    }
+    count
 }
 
 /// Calculate the raw coincidence histogram between ch_a, ch_b in a given
