@@ -1,10 +1,13 @@
 use anyhow::Result;
+use bit_iter::BitIter;
 use parking_lot::{Mutex, RwLock};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tagtools::{CHAN16, Tag};
 use tagtools::pat;
 use timetag::ffi::{new_time_tagger, FfiTag};
+
+use rayon::prelude::*;
 
 use crate::data::PubData;
 use crate::tags_capnp::tags;
@@ -63,12 +66,34 @@ pub fn main(
                 }
             }
         }
-        data.patcounts = pat::patterns(
-            &tags.clone(),
-            &patmasks.into_iter().collect::<Vec<_>>(),
-            1,
-            [0; 16]
-        );
+        data.patcounts = {
+            let mut hm = HashMap::<u16, u64>::new();
+            // Preallocate the hashmap so we can perform the calculations in parallel
+            for pat in patmasks {
+                match pat.count_ones() {
+                    1 => {hm.insert(pat, 0);},
+                    2 => {hm.insert(pat, 0);},
+                    // TODO: Implement higher-order patterns
+                    _ => {},
+                }
+            }
+            hm.par_iter_mut().for_each(
+                |(pat, count)| {
+                    match pat.count_ones() {
+                        1 => {
+                            *count += pat::singles(&tags.clone(), mask_to_single(*pat).unwrap());
+                        },
+                        2 => {
+                            let (ch_a, ch_b) = mask_to_pair(*pat).unwrap();
+                            *count += pat::coincidence(&tags.clone(), ch_a, ch_b, 1, 0);
+                        },
+                        // TODO: Implement higher-order patterns
+                        _ => {},
+                    }
+                }
+            );
+            hm
+        };
         data.duration = dur;
         
         // Signal to publisher
@@ -77,4 +102,23 @@ pub fn main(
     t.stop_timetags();
     t.close();
     Ok(())
+}
+
+/// Returns a single channel if the mask is one channel
+fn mask_to_single(m: u16) -> Option<u8> {
+    match m.count_ones() {
+        1 => Some(BitIter::from(m).next().unwrap() as u8),
+        _ => None,
+    }
+}
+
+/// Returns a tuple of channels if the mask is two channels
+fn mask_to_pair(m: u16) -> Option<(u8, u8)> {
+    match m.count_ones() {
+        2 => {
+            let mut i = BitIter::from(m);
+            Some((i.next().unwrap() as u8, i.next().unwrap() as u8))
+        },
+        _ => None,
+    }
 }
