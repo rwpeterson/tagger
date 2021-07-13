@@ -9,11 +9,12 @@ use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::tag_server_capnp::{publisher, service_pub, subscriber, subscription};
+use crate::tag_server_capnp::{
+    input_settings, publisher, service_pub, subscriber, subscription,
+};
 
 use crate::data::PubData;
-
-use crate::Event;
+use crate::{Event, InputSetting};
 
 pub struct SubscriberHandle {
     client: subscriber::Client<::capnp::any_pointer::Owned>,
@@ -62,10 +63,13 @@ struct PublisherImpl {
     subscribers: Arc<Mutex<SubscriberMap>>,
     cur_tagmask: Arc<RwLock<u16>>,
     cur_patmasks: Arc<RwLock<HashSet<u16>>>,
+    tx_controller: flume::Sender<Event>,
 }
 
 impl PublisherImpl {
-    pub fn new() -> (
+    pub fn new(
+        tx_controller: flume::Sender<Event>,
+    ) -> (
         PublisherImpl,
         Arc<Mutex<SubscriberMap>>,
         Arc<RwLock<u16>>,
@@ -80,6 +84,7 @@ impl PublisherImpl {
                 subscribers: subscribers.clone(),
                 cur_tagmask: cur_tagmask.clone(),
                 cur_patmasks: cur_patmasks.clone(),
+                tx_controller,
             },
             subscribers.clone(),
             cur_tagmask.clone(),
@@ -143,6 +148,34 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         self.next_id += 1;
         Promise::ok(())
     }
+
+    fn set_input(
+        &mut self,
+        params: publisher::SetInputParams<::capnp::any_pointer::Owned>,
+        _results: publisher::SetInputResults<::capnp::any_pointer::Owned>,
+    ) -> capnp::capability::Promise<(), capnp::Error> {
+        use input_settings::Which as w;
+        match pry!(pry!(pry!(params.get()).get_s()).which()) {
+            w::Inversionmask(m) => {
+                self.tx_controller.send(
+                    Event::Set(InputSetting::InversionMask(m))
+                ).unwrap();
+            },
+            w::Delay(r) => {
+                let rdr = pry!(r);
+                self.tx_controller.send(
+                    Event::Set(InputSetting::Delay((rdr.get_ch(), rdr.get_del())))
+                ).unwrap();
+            },
+            w::Threshold(r) => {
+                let rdr = pry!(r);
+                self.tx_controller.send(
+                    Event::Set(InputSetting::Threshold((rdr.get_ch(), rdr.get_th())))
+                ).unwrap();
+            },
+        }
+        Promise::ok(())
+    }
 }
 
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -155,7 +188,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // spawn timer thread
     let (tx_event, rx_event) = flume::unbounded::<Event>();
-    crate::timer::main(std::time::Duration::from_millis(500), tx_event)?;
+    crate::timer::main(std::time::Duration::from_millis(500), tx_event.clone())?;
 
     // controller data sharing
     let data = Arc::new(Mutex::new(PubData {
@@ -163,7 +196,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tags: Box::new(capnp::message::Builder::new_default()),
         patcounts: HashMap::new(),
     }));
-
 
     let addr = args[2]
         .to_socket_addrs()
@@ -174,25 +206,22 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::task::LocalSet::new()
         .run_until(async move {
             let listener = tokio::net::TcpListener::bind(&addr).await?;
-            let (
-                publisher_impl,
-                subscribers,
-                cur_tagmask,
-                cur_patmasks,
-            ) = PublisherImpl::new();
+            let (publisher_impl, subscribers, cur_tagmask, cur_patmasks) =
+                PublisherImpl::new(tx_event.clone());
             let publisher: publisher::Client<_> = capnp_rpc::new_client(publisher_impl);
-            
+
             // spawn controller thread
             let (tx_pub, rx_pub) = flume::unbounded::<()>();
             let data1 = data.clone();
-            std::thread::spawn( move || {
+            std::thread::spawn(move || {
                 crate::controller::main(
                     data1,
                     cur_tagmask.clone(),
                     cur_patmasks.clone(),
                     rx_event,
                     tx_pub,
-                ).unwrap();
+                )
+                .unwrap();
             });
 
             let handle_incoming = async move {
@@ -232,12 +261,14 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let mut tag_bdr = msg_bdr.reborrow().init_tags();
                             tag_bdr.reborrow().set_duration(data.duration);
                             tag_bdr.reborrow().set_tagmask(u16::MAX);
-                            tag_bdr.reborrow().set_tags(data.tags.get_root_as_reader()?)?;
+                            tag_bdr
+                                .reborrow()
+                                .set_tags(data.tags.get_root_as_reader()?)?;
 
                             let mut pats_bdr = msg_bdr.init_pats(data.patcounts.len() as u32);
                             for (i, (&pat, &ct)) in data.patcounts.iter().enumerate() {
                                 let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
-                                pat_bdr.reborrow().set_mask(pat);
+                                pat_bdr.reborrow().set_patmask(pat);
                                 pat_bdr.reborrow().set_duration(data.duration);
                                 pat_bdr.reborrow().set_count(ct);
                             }

@@ -36,7 +36,7 @@ impl subscriber::Server<service_pub::Owned> for SubscriberImpl {
         }
         if pry!(pry!(params.get()).get_message()).has_pats() {
             for lpat in pry!(pry!(pry!(params.get()).get_message()).get_pats()) {
-                println!("pattern: {}", lpat.get_mask());
+                println!("pattern: {}", lpat.get_patmask());
                 println!(" -> counts: {}", lpat.get_count());
                 println!(" -> duration: {}", lpat.get_duration());
             }

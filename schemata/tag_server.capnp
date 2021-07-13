@@ -84,11 +84,32 @@ interface Publisher(T) {
         ( subscriber :Subscriber(T)
         , services :ServiceSub
         ) -> (subscription: Subscription);
+
+    # Set channel properties
+    setInput @1 (s: InputSettings) -> ();
 }
 
 interface Subscriber(T) {
     # Subscriber should return from this message when it is ready to process the next one
     pushMessage @0 (message :T) -> ();
+}
+
+struct InputSettings {
+    union {
+        inversionmask @0 :UInt16;
+        delay @1 :ChannelDelay;
+        threshold @2 :ChannelThreshold;
+    }
+}
+
+struct ChannelDelay {
+    ch  @0 :UInt8;
+    del @1 :UInt32;
+}
+
+struct ChannelThreshold {
+    ch @0 :UInt8;
+    th @1 :Float64;
 }
 
 struct ServiceSub {
