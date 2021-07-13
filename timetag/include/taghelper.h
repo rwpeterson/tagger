@@ -32,7 +32,7 @@ public:
     auto get_no_inputs() const -> uint8_t;
     auto get_resolution() const -> double;
     auto set_input_threshold(uint8_t input, double voltage) const -> void;
-    auto set_inversion_mask(uint32_t mask) const -> void;
+    auto set_inversion_mask(uint16_t mask) const -> void;
     auto set_delay(uint8_t input, uint32_t delay) const -> void;
     auto get_fpga_version() const -> int32_t; // return value is debug only
     auto set_led_brightness(uint8_t percent) const -> void;
@@ -85,7 +85,7 @@ public:
     auto get_no_inputs() const -> uint8_t;
     auto get_resolution() const -> double;
     auto set_input_threshold(uint8_t input, double voltage) const -> void;
-    auto set_inversion_mask(uint32_t mask) const -> void;
+    auto set_inversion_mask(uint16_t mask) const -> void; // shifted by one bit to fit in u16
     // set_delay removed
     auto get_fpga_version() const -> int32_t; // return value is debug only
     auto set_led_brightness(uint8_t percent) const -> void;

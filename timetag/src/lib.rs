@@ -110,7 +110,7 @@ pub mod ffi {
         fn get_no_inputs(self: &TimeTagger) -> u8;
         fn get_resolution(self: &TimeTagger) -> f64;
         fn set_input_threshold(self: &TimeTagger, input: u8, voltage: f64) -> ();
-        fn set_inversion_mask(self: &TimeTagger, mask: u32) -> ();
+        fn set_inversion_mask(self: &TimeTagger, mask: u16) -> ();
         fn set_delay(self: &TimeTagger, input: u8, delay: u32) -> ();
         fn get_fpga_version(self: &TimeTagger) -> i32;
         fn set_led_brightness(self: &TimeTagger, percent: u8);
@@ -157,7 +157,7 @@ pub mod ffi {
         fn get_no_inputs(self: &LogicCounter) -> u8;
         fn get_resolution(self: &LogicCounter) -> f64;
         fn set_input_threshold(self: &LogicCounter, input: u8, voltage: f64) -> ();
-        fn set_inversion_mask(self: &LogicCounter, mask: u32) -> ();
+        fn set_inversion_mask(self: &LogicCounter, mask: u16) -> ();
         // set_delay removed
         fn get_fpga_version(self: &LogicCounter) -> i32; // return value is debug only
         fn set_led_brightness(self: &LogicCounter, percent: u8) -> ();

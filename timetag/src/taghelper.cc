@@ -52,8 +52,8 @@ auto TimeTagger::set_input_threshold(uint8_t input, double voltage) const -> voi
     impl->SetInputThreshold(int(input), voltage);
 }
 
-auto TimeTagger::set_inversion_mask(uint32_t mask) const -> void {
-    impl->SetInversionMask(int(mask));
+auto TimeTagger::set_inversion_mask(uint16_t mask) const -> void {
+    impl->SetInversionMask(int(mask) << 1);
 }
 
 auto TimeTagger::set_delay(uint8_t input, uint32_t delay) const -> void {
@@ -216,8 +216,8 @@ auto LogicCounter::set_input_threshold(uint8_t input, double voltage) const -> v
     impl_tti->SetInputThreshold(int(input), voltage);
 }
 
-auto LogicCounter::set_inversion_mask(uint32_t mask) const -> void {
-    impl_tti->SetInversionMask(int(mask));
+auto LogicCounter::set_inversion_mask(uint16_t mask) const -> void {
+    impl_tti->SetInversionMask(int(mask) << 1);
 }
 
 auto LogicCounter::get_fpga_version() const -> int32_t {
