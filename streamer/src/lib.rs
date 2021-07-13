@@ -8,12 +8,11 @@ pub mod client;
 
 pub enum Event {
     Tick,
-    Set(InputSettings),
+    Set(InputSetting),
 }
 
-pub struct InputSettings {
-    channel: u8,
-    negedge: Option<bool>,
-    delay:   Option<u32>,
-    voltage: Option<f64>,
+pub enum InputSetting {
+    InversionMask(u16),
+    Delay((u8, u32)),
+    Threshold((u8, f64)),
 }
