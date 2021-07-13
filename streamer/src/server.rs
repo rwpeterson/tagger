@@ -13,6 +13,8 @@ use crate::tag_server_capnp::{publisher, service_pub, subscriber, subscription};
 
 use crate::data::PubData;
 
+use crate::Event;
+
 pub struct SubscriberHandle {
     client: subscriber::Client<::capnp::any_pointer::Owned>,
     requests_in_flight: i32,
@@ -152,8 +154,8 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // spawn timer thread
-    let (tx_timer, rx_timer) = flume::unbounded::<()>();
-    crate::timer::main(std::time::Duration::from_millis(500), tx_timer)?;
+    let (tx_event, rx_event) = flume::unbounded::<Event>();
+    crate::timer::main(std::time::Duration::from_millis(500), tx_event)?;
 
     // controller data sharing
     let data = Arc::new(Mutex::new(PubData {
@@ -188,7 +190,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     data1,
                     cur_tagmask.clone(),
                     cur_patmasks.clone(),
-                    rx_timer,
+                    rx_event,
                     tx_pub,
                 ).unwrap();
             });

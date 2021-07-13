@@ -1,7 +1,9 @@
-pub fn main(period: std::time::Duration, tx: flume::Sender<()>) -> anyhow::Result<()> {
+use crate::Event;
+
+pub fn main(period: std::time::Duration, tx: flume::Sender<Event>) -> anyhow::Result<()> {
     std::thread::spawn(move || {
-        while let Ok(()) = tx.send(()) {
-            std::thread::sleep(period)
+        while let Ok(()) = tx.send(Event::Tick) {
+            std::thread::sleep(period);
         }
     });
     Ok(())
