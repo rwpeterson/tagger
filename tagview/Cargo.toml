@@ -1,0 +1,23 @@
+[package]
+name = "tagview"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.41"
+argh = "^0.1.4"
+capnp = "0.14.2"
+capnp-rpc = "0.14.1"
+chrono = "0.4.19"
+crossterm = "0.20.0"
+flume = "0.10.7"
+futures = "0.3.15"
+serde = { version = "1.0.126", features = ["derive"] }
+tagger_capnp = { path = "../tagger_capnp"}
+tagtools = { path = "../tagtools" }
+tokio = { version = "1.7.1", features = ["full"] }
+tokio-util = { version = "0.6.7", features = [ "compat"] }
+toml = "0.5.8"
+tui = {version = "^0.15.0", features = ["crossterm"], default-features = false}
