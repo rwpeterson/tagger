@@ -12,6 +12,8 @@ use rayon::prelude::*;
 use crate::data::PubData;
 use crate::{Event, InputSetting};
 
+
+/// Create and manage time tagger, providing data to the server thread
 pub fn main(
     data: Arc<Mutex<PubData>>,
     cur_tagmask: Arc<RwLock<u16>>,
@@ -50,7 +52,7 @@ pub fn main(
 
                 let mut data = data.lock();
 
-                tagtools::ser::msg::fill(&mut data.tags, &tags.clone());
+                tagtools::ser::fillmsg(&mut data.tags, &tags.clone());
 
                 data.patcounts = count_patterns(&tags.clone(), patmasks);
 
@@ -74,6 +76,7 @@ pub fn main(
     Ok(())
 }
 
+/// Calculate the counts in a set of pattern masks, doing the calculations in parallel
 fn count_patterns(tags: &[Tag], patmasks: HashSet<u16>) -> HashMap<u16, u64> {
     let mut hm = HashMap::<u16, u64>::new();
     // Preallocate the hashmap so we can perform the calculations in parallel

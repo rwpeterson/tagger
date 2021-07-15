@@ -4,12 +4,12 @@
 
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
-use futures::{AsyncReadExt, FutureExt, StreamExt};
+use futures::{AsyncReadExt, FutureExt};
 use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::tag_server_capnp::{
+use tagger_capnp::tag_server_capnp::{
     input_settings, publisher, service_pub, subscriber, subscription,
 };
 

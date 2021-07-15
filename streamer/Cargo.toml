@@ -17,6 +17,7 @@ parking_lot = "0.11.1"
 rand = "0.8.4"
 rayon = "1.5.1"
 serde = "1.0.126"
+tagger_capnp = { path = "../tagger_capnp"}
 tagtools = { path = "../tagtools" }
 timetag = { path = "../timetag" }
 tokio = { version = "1.7.1", features = ["full"] }

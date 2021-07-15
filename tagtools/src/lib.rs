@@ -1,7 +1,6 @@
 pub mod de;
 pub mod pat;
 pub mod ser;
-pub mod tags_capnp;
 
 /// The basic representation of a tagged event
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Debug)]

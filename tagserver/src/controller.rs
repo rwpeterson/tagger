@@ -8,7 +8,7 @@ use cxx::SharedPtr;
 
 use crate::{Config, Event, GetImpl, Job, JobPayload, QueryImpl};
 
-use crate::tag_server_capnp::JobStatus as CJobStatus;
+use tagger_capnp::tag_server_capnp::JobStatus as CJobStatus;
 
 #[derive(Clone)]
 struct JobManager {

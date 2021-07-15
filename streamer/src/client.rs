@@ -4,7 +4,7 @@
 
 
 use capnp_rpc::{RpcSystem, twoparty, rpc_twoparty_capnp, pry};
-use crate::tag_server_capnp::{publisher, subscriber, service_pub};
+use tagger_capnp::tag_server_capnp::{publisher, subscriber, service_pub};
 
 use capnp::capability::Promise;
 use futures::{AsyncReadExt};

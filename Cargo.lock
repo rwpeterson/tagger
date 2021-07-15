@@ -444,6 +444,7 @@ dependencies = [
  "flume",
  "futures",
  "serde",
+ "tagger_capnp",
  "tokio",
  "tokio-util",
  "toml",
@@ -776,6 +777,7 @@ dependencies = [
  "rand",
  "rayon",
  "serde",
+ "tagger_capnp",
  "tagtools",
  "timetag",
  "tokio",
@@ -794,6 +796,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tagger_capnp"
+version = "0.1.0"
+dependencies = [
+ "capnp",
+ "capnp-rpc",
+]
+
+[[package]]
 name = "tagserver"
 version = "0.1.0"
 dependencies = [
@@ -807,6 +817,7 @@ dependencies = [
  "rand",
  "rayon",
  "serde",
+ "tagger_capnp",
  "tagtools",
  "timetag",
  "tokio",
@@ -823,6 +834,7 @@ dependencies = [
  "capnp",
  "csv",
  "itertools",
+ "tagger_capnp",
  "zstd",
 ]
 

@@ -5,7 +5,7 @@ use std::sync::atomic::AtomicU64;
 use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use crate::{Config, Event, TagServerImpl};
-use crate::tag_server_capnp::tagger;
+use tagger_capnp::tag_server_capnp::tagger;
 
 pub async fn main(
     cfg: Config,

@@ -1,4 +1,4 @@
-use logicbatch::tag_server_capnp::tagger;
+use tagger_capnp::tag_server_capnp::{tagger, job_payload, job_submission, JobStatus};
 use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
 
 use futures::AsyncReadExt;
@@ -37,8 +37,8 @@ pub async fn main(addr: std::net::SocketAddr) -> Result<()> {
 
         let rdr = job.send().promise.await.unwrap();
         let jid = match rdr.get().unwrap().get_sub().unwrap().which() {
-            Ok(logicbatch::tag_server_capnp::job_submission::Which::Badsub(_)) => None,
-            Ok(logicbatch::tag_server_capnp::job_submission::Which::Jobid(i)) => Some(i),
+            Ok(job_submission::Which::Badsub(_)) => None,
+            Ok(job_submission::Which::Jobid(i)) => Some(i),
             Err(_) => None,
         };
         tokio::time::sleep(
@@ -69,7 +69,7 @@ pub async fn main(addr: std::net::SocketAddr) -> Result<()> {
         q.get().set_jobid(the_id);
         let qrdr = q.send().promise.await?;
         let check = match qrdr.get()?.get_ret()? {
-            logicbatch::tag_server_capnp::JobStatus::Ready => Some(()),
+            JobStatus::Ready => Some(()),
             _ => None,
         };
         Ok(check) as Result<Option<()>>
@@ -100,8 +100,8 @@ pub async fn main(addr: std::net::SocketAddr) -> Result<()> {
         ans.get().set_jobid(the_id);
         let ardr = ans.send().promise.await.unwrap();
         match ardr.get().unwrap().get_payload().unwrap().which() {
-            Ok(logicbatch::tag_server_capnp::job_payload::Badquery(_)) => println!("badquery"),
-            Ok(logicbatch::tag_server_capnp::job_payload::Payload(p)) => {
+            Ok(job_payload::Badquery(_)) => println!("badquery"),
+            Ok(job_payload::Payload(p)) => {
                 let mut ev = Vec::<u64>::new();
                 let mut pt = Vec::<u16>::new();
                 let prdr = p.unwrap();

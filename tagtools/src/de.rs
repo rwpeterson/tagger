@@ -1,6 +1,6 @@
 //! Deserialization of time tag objects, supporting `.tags` and `.tsv`
 
-use crate::tags_capnp::tags;
+use tagger_capnp::tags_capnp::tags;
 use crate::{Bin, Tag};
 use anyhow::Result;
 use capnp::serialize;

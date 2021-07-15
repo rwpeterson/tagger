@@ -1,6 +1,5 @@
 pub mod server;
 pub mod controller;
-pub mod tag_server_capnp;
 pub mod timer;
 
 use capnp::capability::Promise;
@@ -8,9 +7,9 @@ use capnp_rpc::pry;
 use flume::Sender;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use tag_server_capnp::tagger;
-use tag_server_capnp::JobStatus as CJobStatus;
-use tag_server_capnp::Resolution as CResolution;
+use tagger_capnp::tag_server_capnp::tagger;
+use tagger_capnp::tag_server_capnp::JobStatus as CJobStatus;
+use tagger_capnp::tag_server_capnp::Resolution as CResolution;
 
 #[derive(Clone, Copy)]
 pub struct Config {
@@ -158,7 +157,7 @@ impl tagger::Server for TagServerImpl {
                 pry!(results.get().get_sub()).set_jobid(id);
             },
             Err(_) => {
-                pry!(results.get().get_sub()).set_badsub(tag_server_capnp::JobStatus::Refused)
+                pry!(results.get().get_sub()).set_badsub(CJobStatus::Refused)
             },
         }
         Promise::ok(())
