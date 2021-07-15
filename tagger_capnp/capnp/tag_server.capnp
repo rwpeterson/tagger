@@ -85,8 +85,10 @@ interface Publisher(T) {
         , services :ServiceSub
         ) -> (subscription: Subscription);
 
-    # Set channel properties
+    # Set channel properties (one property of one channel at a time)
     setInput @1 (s: InputSettings) -> ();
+    # Get properties of all channels
+    getInputs @2 () -> (s :InputState);
 }
 
 interface Subscriber(T) {
@@ -94,12 +96,23 @@ interface Subscriber(T) {
     pushMessage @0 (message :T) -> ();
 }
 
+struct InputState {
+    inversionmask @0 :UInt16;
+    delays @1 :List(UInt32);
+    thresholds @2 :List(Float64);
+}
+
 struct InputSettings {
     union {
-        inversionmask @0 :UInt16;
-        delay @1 :ChannelDelay;
+        inversion @0 :ChannelInversion;
+        delay     @1 :ChannelDelay;
         threshold @2 :ChannelThreshold;
     }
+}
+
+struct ChannelInversion {
+    ch  @0 :UInt8;
+    inv @1 :Bool;
 }
 
 struct ChannelDelay {

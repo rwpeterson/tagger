@@ -13,6 +13,7 @@ use tagger_capnp::tag_server_capnp::{
     input_settings, publisher, service_pub, subscriber, subscription,
 };
 
+use crate::bit;
 use crate::data::PubData;
 use crate::{Event, InputSetting};
 
@@ -59,10 +60,21 @@ impl Drop for SubscriptionImpl {
 impl subscription::Server for SubscriptionImpl {}
 
 struct PublisherImpl {
+    // Subscription state
     next_id: u64,
     subscribers: Arc<Mutex<SubscriberMap>>,
+
+    // Union of subscriber's data subscriptions
     cur_tagmask: Arc<RwLock<u16>>,
     cur_patmasks: Arc<RwLock<HashSet<u16>>>,
+
+    // State management of input properties
+    // (tagger API has setters but no getters)
+    invmask: Arc<RwLock<u16>>,
+    delays: Arc<RwLock<Vec<u32>>>,
+    thresholds: Arc<RwLock<Vec<f64>>>,
+
+    // Send Event::Set commands to controller
     tx_controller: flume::Sender<Event>,
 }
 
@@ -81,9 +93,12 @@ impl PublisherImpl {
         (
             PublisherImpl {
                 next_id: 0,
-                subscribers: subscribers.clone(),
-                cur_tagmask: cur_tagmask.clone(),
+                subscribers:  subscribers.clone(),
+                cur_tagmask:  cur_tagmask.clone(),
                 cur_patmasks: cur_patmasks.clone(),
+                invmask:    Arc::new(RwLock::new(0)),
+                delays:     Arc::new(RwLock::new(vec![0; 16])),
+                thresholds: Arc::new(RwLock::new(vec![2.0; 16])),
                 tx_controller,
             },
             subscribers.clone(),
@@ -156,24 +171,58 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
     ) -> capnp::capability::Promise<(), capnp::Error> {
         use input_settings::Which as w;
         match pry!(pry!(pry!(params.get()).get_s()).which()) {
-            w::Inversionmask(m) => {
+            w::Inversion(r) => {
+                let rdr = pry!(r);
+                let mut invmask = self.invmask.write();
+                bit::changebit16(&mut *invmask, rdr.get_ch() - 1, rdr.get_inv());
                 self.tx_controller.send(
-                    Event::Set(InputSetting::InversionMask(m))
+                    Event::Set(InputSetting::InversionMask(*invmask))
                 ).unwrap();
             },
             w::Delay(r) => {
                 let rdr = pry!(r);
+                let mut delays = self.delays.write();
+                let ch = rdr.get_ch();
+                let del = rdr.get_del();
+                delays[(ch - 1) as usize] = del;
                 self.tx_controller.send(
-                    Event::Set(InputSetting::Delay((rdr.get_ch(), rdr.get_del())))
+                    Event::Set(InputSetting::Delay((ch, del)))
                 ).unwrap();
             },
             w::Threshold(r) => {
                 let rdr = pry!(r);
+                let mut thresholds = self.thresholds.write();
+                let ch = rdr.get_ch();
+                let th = rdr.get_th();
+                thresholds[(ch - 1) as usize] = th;
                 self.tx_controller.send(
-                    Event::Set(InputSetting::Threshold((rdr.get_ch(), rdr.get_th())))
+                    Event::Set(InputSetting::Threshold((ch, th)))
                 ).unwrap();
             },
         }
+        Promise::ok(())
+    }
+
+    fn get_inputs(
+        &mut self,
+        _params: publisher::GetInputsParams<::capnp::any_pointer::Owned>,
+        mut results: publisher::GetInputsResults<::capnp::any_pointer::Owned>
+    ) -> capnp::capability::Promise<(), capnp::Error> {
+        let invmask = self.invmask.read();
+        let delays = self.delays.read();
+        let thresholds = self.thresholds.read();
+
+        let mut bdr = results.get().init_s();
+        bdr.set_inversionmask(*invmask);
+        let mut d_bdr = bdr.reborrow().init_delays(delays.len() as u32);
+        for (i, &d) in delays.iter().enumerate() {
+            d_bdr.set(i as u32, d);
+        }
+        let mut t_bdr = bdr.reborrow().init_thresholds(thresholds.len() as u32);
+        for (i, &t) in thresholds.iter().enumerate() {
+            t_bdr.set(i as u32, t);
+        }
+        
         Promise::ok(())
     }
 }

@@ -46,7 +46,7 @@ pub fn newmsg(tags: &[Tag]) -> Box<message::Builder<message::HeapAllocator>> {
     return message;
 }
 
-/// Like msg::new, except you already have a Box<message> you want to use for serialization
+/// Build from an existing Box<message>
 pub fn fillmsg(message: &mut Box<message::Builder<message::HeapAllocator>>, tags: &[Tag]) {
     let message_builder = message.init_root::<tags::Builder>();
 

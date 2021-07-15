@@ -1,10 +1,9 @@
 //! Tools for analyzing patterns in time tag datasets
 
 use crate::Tag;
-use bit_iter::BitIter;
 use itertools::Itertools;
 use std::cmp;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 /// Count number of events in a given channel.
 pub fn singles(tags: &[Tag], ch: u8) -> u64 {
@@ -87,84 +86,6 @@ pub fn coincidence(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> u6
         }
     }
     return count as u64;
-}
-
-/// Count arbitrary patterns at a fixed delay per channel
-pub fn patterns(tags: &[Tag], pats: &[u16], win: i64, delays: [i64; 16]) -> HashMap<u16, u64> {
-    // Time-related values are signed to avoid ubiquitous checking during casting,
-    // but the following need to be nonnegative:
-    assert!(win >= 0);
-
-    // Delay, bin, and re-sort the tags
-    // After this point, tags are coincident if their times are identical
-    let t = tags.iter()
-        .map(|&t| Tag {
-            time: (t.time + delays[t.channel as usize - 1]) / win,
-            channel: t.channel
-        })
-        .sorted()
-        .collect::<Vec<_>>();
-
-    let mut tag_iter = t.iter().peekable();
-
-    let mut counts = HashMap::<u16, u64>::new();
-    for &pat in pats {
-        counts.insert(pat, 0);
-    }
-
-    // We expect to see ~N events per window for an N-fold pattern
-    let x = pats.iter().map(|&y| BitIter::from(y).count()).max().unwrap_or(1);
-    let mut buffer = VecDeque::<Tag>::with_capacity(2 * x);
-
-    // Seed the buffer with one tag
-    if let Some(&t) = tag_iter.next() {
-        buffer.push_back(t);
-    }
-
-    while !buffer.is_empty() {
-        if let Some(&t0) = buffer.front() {
-            // Fill buffer with tags at same time
-            buffer.extend(
-                tag_iter.peeking_take_while(|&&t| t.time == t0.time)
-            );
-            // Drain buffer into pattern mask to check against
-            let mask = buffer.drain(..).fold(0u16, |a, t| 1 << (t.channel - 1) | a);
-            assert!(buffer.is_empty());
-            for pat in pats {
-                if *pat & mask == *pat {
-                    if let Some(c) = counts.get_mut(pat) {
-                        *c += 1;
-                    }
-                }
-            }
-        }
-        // Don't leave buffer empty for the next loop
-        if let Some(&t) = tag_iter.next() {
-            buffer.push_back(t);
-        }
-    }
-    return counts;
-}
-
-/// Basis for a faster general comparison?
-pub fn intersection(a: &[u32], b: &[u32]) -> usize {
-    // https://stackoverflow.com/a/56265037
-    let mut count = 0;
-    let mut b_iter = b.iter();
-    if let Some(mut current_b) = b_iter.next() {
-        for current_a in a {
-            while current_b < current_a {
-                current_b = match b_iter.next() {
-                    Some(current_b) => current_b,
-                    None => return count,
-                };
-            }
-            if current_a == current_b {
-                count += 1;
-            }
-        }
-    }
-    count
 }
 
 /// Calculate the raw coincidence histogram between ch_a, ch_b in a given
