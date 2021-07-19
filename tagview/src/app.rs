@@ -1,16 +1,15 @@
-
-use crate::save;
-
 use tagtools::Tag;
 
 #[allow(unused_imports)]
 use anyhow::{bail, ensure, Result, Context};
+use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
 use std::path;
 use std::sync::Arc;
-use std::thread;
-use std::time::Instant;
 
+use crate::save;
+use crate::client::{ClientHandle, ClientMessage};
+use crate::save::SaveHandle;
 
 #[allow(unused_imports)]
 use tui::{
@@ -28,7 +27,9 @@ pub struct App<'a> {
     pub title: &'a str,
     pub enhanced_graphics: bool,
     pub should_quit: bool,
-    pub tags: Arc<Vec<Tag>>,
+    pub tags: Arc<Mutex<Vec<Tag>>>,
+    pub pats: Arc<Mutex<HashMap<u16, u64>>>,
+    pub duration: u64,
     pub save: bool,
     pub filepath: Option<path::PathBuf>,
     pub flags: HashSet<String>,
@@ -37,24 +38,26 @@ pub struct App<'a> {
     pub hist_len: usize,
     pub singles: Vec<HashMap<u8, f64>>,
     pub coincs: Vec<HashMap<(u8, u8), f64>>,
-    pub last_read: Instant,
     pub error_text: Option<anyhow::Error>,
-    pub tx_io: flume::Sender<save::SaveMessage>,
+    pub client_handle: ClientHandle,
+    pub save_handle: SaveHandle,
 }
 
 impl<'a> App<'a> {
     pub fn new(
         title: &'a str,
         enhanced_graphics: bool,
-        tx_io: flume::Sender<save::SaveMessage>,
-        tx_client: flume::Sender<()>,
+        client_handle: ClientHandle,
+        save_handle: SaveHandle,
     ) -> App<'a>
     {
         App {
             title,
             enhanced_graphics,
             should_quit: false,
-            tags: Arc::new(Vec::new()),
+            tags: Arc::new(Mutex::new(Vec::new())),
+            pats: Arc::new(Mutex::new(HashMap::new())),
+            duration: 0,
             save: false,
             filepath: None,
             flags: HashSet::new(),
@@ -63,9 +66,9 @@ impl<'a> App<'a> {
             hist_len: 80,
             singles: Vec::new(),
             coincs: Vec::new(),
-            last_read: Instant::now(),
             error_text: None,
-            tx_io,
+            client_handle,
+            save_handle,
         }
     }
 
@@ -77,7 +80,7 @@ impl<'a> App<'a> {
                 match self.save {
                     true => {
                         self.save = false;
-                        self.tx_io.send(save::SaveMessage::Reset).unwrap();
+                        self.save_handle.sender.send(save::SaveMessage::Reset).unwrap();
                     },
                     false => {
                         self.save = true;
@@ -89,16 +92,33 @@ impl<'a> App<'a> {
     }
 
     pub fn on_tick(&mut self) {
-        self.tags = Arc::new(
-            vec![Tag { time: 1, channel: 1 }]
-        );
-        
-        let time = self.last_read.elapsed().as_secs_f64();
-        self.last_read = Instant::now();
+        let (respond_to, response) = flume::bounded(1);
+        let _ = self.client_handle.sender.send(ClientMessage::GetData { respond_to });
+
+        let mut tags = self.tags.lock();
+        let mut pats = self.pats.lock();
+        let newdata = response.recv().unwrap();
+        self.duration = 0;
+        (*tags).clear();
+        (*pats).clear();
+        if let Some(data) = newdata {
+            for mut chunk in data {
+                self.duration += chunk.tagpat.duration;
+                (*tags).append(&mut chunk.tagpat.tags);
+                for lpat in chunk.pats {
+                    if let None = (*pats).get(&lpat.patmask) {
+                        let _ = (*pats).insert(lpat.patmask, 0);
+                    }
+                    if let Some(v) = (*pats).get_mut(&lpat.patmask) {
+                        *v += lpat.count;
+                    }
+                }
+            }
+        }
 
         // Save data to disk
         if self.save == true {
-            match self.tx_io.try_send(
+            match self.save_handle.sender.send(
                 save::SaveMessage::Save(
                     save::SaveTags { tags: self.tags.clone(), path: self.filepath.clone() }
                 )

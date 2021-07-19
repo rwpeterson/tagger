@@ -28,28 +28,12 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .split(f.size());
     draw_titlebar(f, app, chunks[0]);
     draw_singles(f, app, chunks[1]);
-    draw_sparkline2(f, app, chunks[2]);
+    draw_coincidences(f, app, chunks[2]);
     draw_footer(f, app, chunks[3]);
 }
 
 fn _draw_sparkline1<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
     f.render_widget(Paragraph::new(if let Some(e) = &app.error_text {format!("{}", e)} else {String::from("")}), area)
-}
-
-fn draw_sparkline2<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
-    f.render_widget(
-        Paragraph::new(
-            app.tags.iter()
-                .take(10)
-                .map(|&t|
-                    Spans::from(
-                        Span::raw(format!("{0} {1}", t.channel, t.time))
-                    )
-                )
-                .collect::<Vec<Spans>>()
-        ),
-        area,
-    )
 }
 
 fn draw_titlebar<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
@@ -99,9 +83,13 @@ fn _draw_sparkline<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
 }
 
 fn draw_singles<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
-    let nch = tagtools::CHAN16.len();
-    let ncols = nch / 2;
-    let nrows = nch / ncols;
+    let pats = app.pats.lock();
+    let nch = pats.len();
+    let ncols = 8;
+    let nrows = match nch % ncols {
+        0 => nch / ncols,
+        _ => nch / ncols + 1,
+    };
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints(
@@ -121,22 +109,78 @@ fn draw_singles<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
         );
     }
 
-    let mut chan_iter = tagtools::CHAN16.iter().copied();
+    let dur = app.duration;
+    let mut singlesvec = pats.iter()
+        .filter(|(m,_)| m.count_ones() == 1)
+        .collect::<Vec<_>>();
+    singlesvec.sort();
+    let mut chan_iter = singlesvec.iter();
     for row in rc {
         for elem in row {
-            if let Some(ch) = chan_iter.next() {
-                if let Some(hashmap) = app.singles.last() {
-                    if let Some(rate) = hashmap.get(&ch) {
-                        let text = Paragraph::new(
-                            Spans::from(vec![
-                                Span::styled(format!("{:>2}", ch), Style::default()
-                                    .add_modifier(Modifier::BOLD | Modifier::DIM)),
-                                Span::styled(format!("{:>7.0}", rate), Style::default()),
-                            ])
-                        );
-                        f.render_widget(text, elem);
-                    }
-                }
+            if let Some((&m, &ct)) = chan_iter.next() {
+                let ch = bit_iter::BitIter::from(m).next().unwrap() + 1;
+                let rate = ct as f64 / (dur as f64 / 5e-9);
+                let text = Paragraph::new(
+                    Spans::from(vec![
+                        Span::styled(format!("{:>2}", ch), Style::default()
+                            .add_modifier(Modifier::BOLD | Modifier::DIM)),
+                        Span::styled(format!("{:>7.0}", rate), Style::default()),
+                    ])
+                );
+                f.render_widget(text, elem);
+            }
+        }
+    }
+}
+
+fn draw_coincidences<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
+    let pats = app.pats.lock();
+    let nch = pats.len();
+    let ncols = 8;
+    let nrows = match nch % ncols {
+        0 => nch / ncols,
+        _ => nch / ncols + 1,
+    };
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            vec![Constraint::Percentage((100.0 / nrows as f32) as u16); nrows]
+        )
+        .split(area);
+    
+    let mut rc: Vec<Vec<Rect>> = Vec::new();
+    for row in rows {
+        rc.push(
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(
+                    vec![Constraint::Percentage((100.0 / ncols as f32) as u16); ncols]
+                )
+                .split(row)
+        );
+    }
+
+    let dur = app.duration;
+    let mut coincvec = pats.iter()
+        .filter(|(m,_)| m.count_ones() == 2)
+        .collect::<Vec<_>>();
+    coincvec.sort();
+    let mut chan_iter = coincvec.iter();
+    for row in rc {
+        for elem in row {
+            if let Some((&m, &ct)) = chan_iter.next() {
+                let mut bi = bit_iter::BitIter::from(m);
+                let ch_b = bi.next().unwrap() + 1;
+                let ch_a = bi.next().unwrap() + 1; 
+                let rate = ct as f64 / (dur as f64 / 5e-9);
+                let text = Paragraph::new(
+                    Spans::from(vec![
+                        Span::styled(format!("{0:>2}-{1:>2}", ch_a, ch_b), Style::default()
+                            .add_modifier(Modifier::BOLD | Modifier::DIM)),
+                        Span::styled(format!("{:>7.0}", rate), Style::default()),
+                    ])
+                );
+                f.render_widget(text, elem);
             }
         }
     }

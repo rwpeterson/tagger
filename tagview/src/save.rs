@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
+use parking_lot::Mutex;
 use std::env;
 use std::fs;
 use std::path;
@@ -8,7 +9,7 @@ use std::thread;
 use tagtools::{Tag, ser};
 
 pub struct SaveTags {
-    pub tags: Arc<Vec<Tag>>,
+    pub tags: Arc<Mutex<Vec<Tag>>>,
     pub path: Option<path::PathBuf>,
 }
 
@@ -17,15 +18,24 @@ pub enum SaveMessage {
     Reset,
 }
 
-pub fn main(rx: flume::Receiver::<SaveMessage>) {
+pub struct SaveHandle {
+    pub sender: flume::Sender<SaveMessage>,
+}
+
+impl SaveHandle {
+    pub fn new() -> Self {
+        let (sender, receiver) = flume::unbounded();
+        
     thread::spawn(move || {
         let mut curpath: Option<path::PathBuf> = None;
         let mut file: Option<fs::File> = None;
         loop {
-            if let Ok(st) = rx.recv() {
+            if let Ok(st) = receiver.recv() {
                 match st {
                     SaveMessage::Save(st) => {
-                        update_and_write_file(st.path, &mut curpath, &mut file, &st.tags)
+                        let tags = st.tags.lock();
+                        let t = &*tags;
+                        update_and_write_file(st.path, &mut curpath, &mut file, &t)
                             .context("file io error")
                             .unwrap();
                     },
@@ -38,6 +48,8 @@ pub fn main(rx: flume::Receiver::<SaveMessage>) {
             }
         }
     });
+    SaveHandle { sender }
+    }
 }
 
 fn update_and_write_file(
