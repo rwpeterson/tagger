@@ -15,7 +15,7 @@ bencher = "0.1.5"
 
 [dependencies]
 anyhow = "1.0.13"
-bit-iter = "=0.1.4"
+bit-iter = "0.1.5"
 capnp = "0.14.2"
 csv = "1.1.6"
 itertools = "0.10.0"
