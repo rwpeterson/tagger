@@ -6,11 +6,17 @@ use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::AsyncReadExt;
 use parking_lot::Mutex;
+use std::path::Path;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
-use tagtools::Tag;
+use tagtools::{chans_to_mask, Tag};
+use tokio::fs::File;
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
+
+
+use crate::Cli;
+use crate::config::RunConfig;
 
 struct Client {
     receiver: mpsc::UnboundedReceiver<ClientMessage>,
@@ -42,7 +48,7 @@ pub struct ClientHandle {
 }
 
 impl ClientHandle {
-    pub fn new() -> Self {
+    pub fn new(cli: Cli) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let (data_sender, data_receiver) = mpsc::unbounded_channel();
         let mut rpc_client = Client::new(receiver, data_receiver);
@@ -50,7 +56,7 @@ impl ClientHandle {
 
         std::thread::spawn(move || {
             rt.block_on(async move {
-                rpc_client.main(data_sender).await.unwrap();
+                rpc_client.main(cli, data_sender).await.unwrap();
             });
         });
 
@@ -125,16 +131,12 @@ impl subscriber::Server<service_pub::Owned> for SubscriberImpl {
 impl Client {
     async fn main(
         &mut self,
+        cli: Cli,
         data_sender: mpsc::UnboundedSender<StreamData>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         use std::net::ToSocketAddrs;
-        let args: Vec<String> = ::std::env::args().collect();
-        if args.len() != 3 {
-            println!("usage: {} client HOST:PORT", args[0]);
-            return Ok(());
-        }
 
-        let addr = args[2]
+        let addr = cli.addr
             .to_socket_addrs()
             .unwrap()
             .next()
@@ -186,10 +188,29 @@ impl Client {
                     rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
                 let sub = capnp_rpc::new_client(SubscriberImpl { sender: data_sender });
 
+                // Process the config for subscription
+                let path = Path::new(&cli.config);
+                let mut f = File::open(path).await?;
+                let mut s = String::new();
+                tokio::io::AsyncReadExt::read_to_string(&mut f, &mut s).await?;
+                let config: RunConfig = toml::de::from_str(&s)?;
+
+                let mut pats = Vec::new();
+                for ch in config.singles {
+                    pats.push(chans_to_mask(&[ch]));
+                }
+                for (ch_a, ch_b) in config.coincidences {
+                    pats.push(chans_to_mask(&[ch_a, ch_b]));
+                }
+                
+                // Assemble the request
                 let mut request = publisher.subscribe_request();
                 request.get().reborrow().set_subscriber(sub);
                 let sbdr = request.get().init_services();
-                let mut pbdr = sbdr.init_patmasks(1);
+                let mut pbdr = sbdr.init_patmasks(pats.len() as u32);
+                for (i, &pat) in pats.iter().enumerate() {
+                    pbdr.set(i as u32, pat);
+                }
                 pbdr.set(0, 2);
 
                 // Need to make sure not to drop the returned subscription object.

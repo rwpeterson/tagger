@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use anyhow::{Context, Result};
-use argh::FromArgs;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture, KeyCode},
     execute,
@@ -14,44 +13,42 @@ use tui::{backend::CrosstermBackend, Terminal};
 use tagview::client::ClientHandle;
 use tagview::timer::TimerHandle;
 use tagview::save::SaveHandle;
+use tagview::Cli;
 
-#[derive(Debug, FromArgs)]
-/// cli app args
-struct Cli {
-    /// tick period in ms
-    #[argh(option, default = "1000")]
-    tick_rate: u64,
-    /// use unicode graphics
-    #[argh(option, default = "true")]
-    enhanced_graphics: bool,
-}
-
-/// Structure of `main`
+/// Timetag visualization client
 /// 
-/// ## Threads and async
+/// ## Structure
 /// 
-/// We need to manage several tasks:
-/// - UI event loop in a dedicated thread
-/// - File IO in a dedicated thread that holds the current file
-/// - Cap'n Proto RPC using tokio
+/// `tagview` needs to manage several threads:
+/// - Main thread that responds to tick/input events and draws the UI
+/// - Event loop in a dedicated thread. This sends ticks at regular intervals,
+///   and polls for keyboard input which it passes along
+/// - Saving tags to disk in a dedicated thread that holds the current file.
+///   File IO is blocking, so this must be separate
+/// - Cap'n Proto RPC using tokio. This has several tasks running concurrently,
+///   including making the TCP connection with the server, sending/receiving
+///   RPCs, and managing the data to be passed to the main thread
 ///
-/// For an overview of when to use dedicated threads, rayon, or tokio::spawn_blocking for blocking
-/// code, see [a tokio maintainer's blog](https://ryhl.io/blog/async-what-is-blocking/). Basically,
-/// async code should always be `.await`ing, and blocking code needs to be dealt with between tokio,
-/// rayon, and std::thread according to the degree it's CPU-bound, or intended to
-/// run forever.
+/// For an overview of when to use `std::thread`, `rayon`, or `tokio::spawn_blocking`
+/// for blocking code, see [a tokio maintainer's blog](https://ryhl.io/blog/async-what-is-blocking/).
+/// Basically, async code should always be `.await`ing, and blocking code needs 
+/// to be dealt with between `std::thread`, `rayon`, and `tokio::spawn_blocking`
+/// according to the degree it is persistent, CPU-bound, or meets other considerations.
 ///
 /// For an overview of how to communicate between async and sync code, see the
 /// [`tokio::sync::mpsc` docs](https://docs.rs/tokio/1.7.0/tokio/sync/mpsc/index.html) on the
-/// correct choice of channel.
+/// correct choice of channel. tl;dr: channels should match the destination (async vs sync),
+/// as (at least for unbounded channels), `.send()` is always non-blocking but `.recv()`
+/// needs to block in sync code or return a future in async code. Because `std::sync::mpsc`
+/// is relatively unpopular, it's worth noting that `flume` channels support sync and async
+/// in both directions, making them very versitile.
 ///
 ///
-
 fn main() -> Result<()> {
     let cli: Cli = argh::from_env();
 
     // Client thread - runs async runtime for Cap'n Proto RPC
-    let client_handle = ClientHandle::new();
+    let client_handle = ClientHandle::new(cli.clone());
 
     // Event thread - forwards input events and sends ticks
     let tick_rate = Duration::from_millis(cli.tick_rate);
