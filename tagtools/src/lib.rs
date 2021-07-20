@@ -25,3 +25,23 @@ where
 pub const TSTEP: f64 = 156.25e-12;
 pub const CHAN16: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
+pub fn chans_to_mask(chs: &[u8]) -> u16 {
+    let mut m = 0;
+    for ch in chs {
+        m |= 1 << (ch - 1);
+    }
+
+    return m;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mask1() {
+        let chs = vec![1, 5, 6, 16];
+        let mask = chans_to_mask(&chs);
+        assert_eq!(0b1000000000110001, mask);
+    }
+}
