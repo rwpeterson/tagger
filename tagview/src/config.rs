@@ -25,5 +25,21 @@ pub struct ChannelSettings {
 }
 
 fn emptyvec<T>() -> Vec<T> {
-    vec![]
+    Vec::new()
+}
+
+impl Default for RunConfig {
+    fn default() -> Self {
+        RunConfig {
+            name:              String::new(),
+            time_limit:        None,
+            singles_limit:     None,
+            coincidence_limit: None,
+            save_counts:       None,
+            save_tags:         None,
+            singles:           Vec::new(),
+            coincidences:      Vec::new(),
+            channel_settings:  Vec::new(),
+        }
+    }
 }

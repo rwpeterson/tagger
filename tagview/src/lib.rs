@@ -11,7 +11,7 @@ use argh::FromArgs;
 /// cli app args
 pub struct Cli {
     /// tick period in ms
-    #[argh(option, default = "1000")]
+    #[argh(option, default = "250")]
     pub tick_rate: u64,
     /// use unicode graphics
     #[argh(option, default = "true")]

@@ -51,9 +51,9 @@ checksum = "7dfdb4953a096c551ce9ace855a604d702e6e62d77fac690575ae347571717f5"
 
 [[package]]
 name = "bit-iter"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2c15a219fd07fb0d74edd64c30ecb533b489dc9b3e605a07e3f9f86488c91a0"
+checksum = "514abd67d3f7e56aa7c8181b8668fe52ddd04992748d01d955016d9672df7953"
 
 [[package]]
 name = "bitflags"

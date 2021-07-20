@@ -1,10 +1,10 @@
 use anyhow::Result;
-use bit_iter::BitIter;
 use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tagtools::pat;
 use tagtools::{Tag, CHAN16};
+use tagtools::bit::*;
 use timetag::ffi::{new_time_tagger, FfiTag};
 
 use rayon::prelude::*;
@@ -109,21 +109,4 @@ fn count_patterns(tags: &[Tag], patmasks: HashSet<u16>) -> HashMap<u16, u64> {
     hm
 }
 
-/// Returns a single channel if the mask is one channel
-fn mask_to_single(m: u16) -> Option<u8> {
-    match m.count_ones() {
-        1 => Some(BitIter::from(m).next().unwrap() as u8),
-        _ => None,
-    }
-}
 
-/// Returns a tuple of channels if the mask is two channels
-fn mask_to_pair(m: u16) -> Option<(u8, u8)> {
-    match m.count_ones() {
-        2 => {
-            let mut i = BitIter::from(m);
-            Some((i.next().unwrap() as u8, i.next().unwrap() as u8))
-        }
-        _ => None,
-    }
-}

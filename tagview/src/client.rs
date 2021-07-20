@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use std::path::Path;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
-use tagtools::{chans_to_mask, Tag};
+use tagtools::{bit::chans_to_mask, Tag};
 use tokio::fs::File;
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
@@ -155,7 +155,10 @@ impl Client {
                                         let mut buffer = b.lock();
                                         let _ = match (*buffer).is_empty() {
                                             true => respond_to.send(None),
-                                            false => respond_to.send(Some((*buffer).drain(..).collect())),
+                                            false => {
+                                                let data = (*buffer).drain(..).collect();
+                                                respond_to.send(Some(data))
+                                            },
                                         };
                                     }
                                 }
@@ -211,7 +214,6 @@ impl Client {
                 for (i, &pat) in pats.iter().enumerate() {
                     pbdr.set(i as u32, pat);
                 }
-                pbdr.set(0, 2);
 
                 // Need to make sure not to drop the returned subscription object.
                 futures::future::try_join3(rpc_system, request.send().promise, client_future)

@@ -41,13 +41,40 @@ fn serde_config() {
     assert_eq!(config, deconfig);
 }
 
-fn _deserialize_config_example() {
-    let x = "name = \"test_settings_serde\"
-    time_limit = 3600
-    singles = [ 1, 2, 3, 4, 5, 6, 7, 8 ]
-    coincidences = [ [1, 2], [2, 3], [3, 4], [4, 5] ]";
+#[test]
+fn simple1() {
+    let x =
+        "name = \"test_settings_serde\"
+        singles = [ 1, 2, 3, 4, 5, 6, 7, 8 ]
+        coincidences = [ [1, 2], [2, 3], [3, 4], [4, 5] ]";
 
     let de: RunConfig = toml::de::from_str(x).unwrap();
 
-    println!("{:?}", de);
+    let r = RunConfig {
+        name: "test_settings_serde".to_owned(),
+        singles: vec![1, 2, 3, 4, 5, 6, 7, 8],
+        coincidences: vec![(1,2), (2,3), (3,4), (4,5)],
+        ..Default::default()
+    };
+    
+    assert_eq!(r, de);
+}
+
+#[test]
+fn simple2() {
+    let x =
+        "name = \"test_config\"
+        singles = [ 1, 2, 3, 4 ]
+        coincidences = [ [1, 2], [2, 3], [3, 4], [4, 5] ]";
+    
+    let de: RunConfig = toml::de::from_str(x).unwrap();
+
+    let r = RunConfig {
+        name: "test_config".to_owned(),
+        singles: vec![1, 2, 3, 4],
+        coincidences: vec![(1,2), (2,3), (3,4), (4,5)],
+        ..Default::default()
+    };
+    
+    assert_eq!(r, de);
 }

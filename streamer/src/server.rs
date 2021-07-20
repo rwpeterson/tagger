@@ -128,7 +128,6 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         params: publisher::SubscribeParams<::capnp::any_pointer::Owned>,
         mut results: publisher::SubscribeResults<::capnp::any_pointer::Owned>,
     ) -> Promise<(), ::capnp::Error> {
-        println!("subscribe");
 
         // Gather subscription parameters
         let svc_rdr = pry!(pry!(params.get()).get_services());
@@ -137,6 +136,13 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
             false => Vec::new(),
             true => pry!(svc_rdr.reborrow().get_patmasks()).iter().collect(),
         };
+
+        print!("subscribe: [");
+        for pat in patmasks.clone() {
+            print!("{:#x}, ", pat);
+        }
+        println!("]");
+
         let sub_client = pry!(pry!(params.get()).get_subscriber());
 
         // Insert new subscriber
@@ -237,7 +243,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // spawn timer thread
     let (tx_event, rx_event) = flume::unbounded::<Event>();
-    crate::timer::main(std::time::Duration::from_millis(500), tx_event.clone())?;
+    crate::timer::main(std::time::Duration::from_millis(250), tx_event.clone())?;
 
     // controller data sharing
     let data = Arc::new(Mutex::new(PubData {

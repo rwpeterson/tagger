@@ -119,7 +119,7 @@ fn draw_singles<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
         for elem in row {
             if let Some((&m, &ct)) = chan_iter.next() {
                 let ch = bit_iter::BitIter::from(m).next().unwrap() + 1;
-                let rate = ct as f64 / (dur as f64 / 5e-9);
+                let rate = ct as f64 / (dur as f64 * 5e-9);
                 let text = Paragraph::new(
                     Spans::from(vec![
                         Span::styled(format!("{:>2}", ch), Style::default()
