@@ -985,6 +985,7 @@ dependencies = [
  "bit-iter",
  "capnp",
  "capnp-rpc",
+ "chrono",
  "cxx",
  "flume",
  "futures",

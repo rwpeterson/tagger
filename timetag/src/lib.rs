@@ -64,13 +64,14 @@ use std::collections::HashSet;
 /// Because the FFI requires that the implementation-dependent types be
 /// cast to fixed-width types anyway, almost all integers are cast to
 /// unsigned to follow their semantic meaning. 64 and 32 bit counters,
-/// and 32-bit masks keep their bit depth, but channels are consistently
-/// reduced to a `u8`, and certain variables with limited-range arguments
-/// like those taken by `set_led_brightness()` and `set_output_width()`
-/// are also changed to `u8`. An exception is the tag timestamps, where
-/// in the analysis it is very common to take differences between tags,
-/// so they are left as `i64`s in the FFI to avoid annoying casting
-/// everywhere a negative value may occur.
+/// keep their bit depth, but channels are consistently reduced to a `u8`,
+/// pattern masks are reduced to `u16` (and sometimes shifted by one to
+/// regularize bit 0 == channel 1), and certain variables with limited-
+/// range arguments like those taken by `set_led_brightness()` and
+/// `set_output_width()` are also changed to `u8`. An exception is the
+/// tag timestamps: because in the analysis it is very common to take
+/// differences between tags, they are left as `i64`s in the FFI to avoid
+/// annoying casting/checking everywhere a negative value could occur.
 ///
 /// Arguments are not checked for valid values, beyond using unsigned
 /// integers where appropriate, and restricting to the smallest possible

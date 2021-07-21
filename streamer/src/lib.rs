@@ -1,6 +1,8 @@
 pub mod client;
 pub mod controller;
+pub mod copier;
 pub mod data;
+pub mod processor;
 pub mod server;
 pub mod timer;
 

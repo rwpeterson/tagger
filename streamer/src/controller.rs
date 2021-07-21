@@ -1,112 +1,59 @@
 use anyhow::Result;
-use parking_lot::{Mutex, RwLock};
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use tagtools::pat;
-use tagtools::{Tag, CHAN16};
-use tagtools::bit::*;
+use chrono::{SecondsFormat, Utc};
+use cxx::{CxxVector, UniquePtr};
+use std::time::Duration;
+use tagtools::CHAN16;
 use timetag::ffi::{new_time_tagger, FfiTag};
+use timetag::error_text;
 
-use rayon::prelude::*;
-
-use crate::data::PubData;
 use crate::{Event, InputSetting};
-
 
 /// Create and manage time tagger, providing data to the server thread
 pub fn main(
-    data: Arc<Mutex<PubData>>,
-    cur_tagmask: Arc<RwLock<u16>>,
-    cur_patmasks: Arc<RwLock<HashSet<u16>>>,
     rx: flume::Receiver<Event>,
-    tx: flume::Sender<()>,
+    tx: flume::Sender<(UniquePtr<CxxVector<FfiTag>>, u64)>,
 ) -> Result<()> {
-    let t = new_time_tagger();
-    t.open();
+    let tt = new_time_tagger();
+    tt.open();
     for ch in CHAN16 {
-        t.set_input_threshold(ch, 2.0);
+        tt.set_input_threshold(ch, 2.0);
     }
-    t.set_fg(200_000, 100_000);
-    t.start_timetags();
-    t.freeze_single_counter();
+    tt.set_fg(200_000, 100_000);
+    tt.start_timetags();
+    tt.freeze_single_counter();
     loop {
-        match rx.recv() {
-            Ok(Event::Tick) => {
-                // Acquire new data
-                let tags = Arc::new(
-                    t.read_tags()
-                        .iter()
-                        .map(|t: &FfiTag| Tag {
-                            time: t.time,
-                            channel: t.channel,
-                        })
-                        .collect::<Vec<_>>(),
-                );
-                let dur = t.freeze_single_counter();
+        let tags: UniquePtr<CxxVector<FfiTag>> = tt.read_tags();
+        let dur = tt.freeze_single_counter();
 
-                // Check in on what to process
-                let t = cur_tagmask.read();
-                let _tagmask = *t;
-                let ps = cur_patmasks.read();
-                let patmasks = (*ps).clone();
-
-                let mut data = data.lock();
-
-                tagtools::ser::fillmsg(&mut data.tags, &tags.clone());
-
-                data.patcounts = count_patterns(&tags.clone(), patmasks);
-
-                data.duration = dur;
-
-                // Signal to publisher
-                tx.send(()).unwrap();
+        let flags = tt.read_error_flags();
+        if flags != 0 {
+            let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+            let t0 = match &tags.get(0) {
+                Some(t) => format!("{}", t.time),
+                None => String::from("[no tags]")
+            };
+            print!("{}\t{}", ts, t0);
+            for error in error_text(flags) {
+                print!("\t{}", error);
             }
-            Ok(Event::Set(s)) => {
-                match s {
-                    InputSetting::InversionMask(m) => t.set_inversion_mask(m),
-                    InputSetting::Delay((ch, del)) => t.set_delay(ch, del),
-                    InputSetting::Threshold((ch, th)) => t.set_input_threshold(ch, th),
-                }
+            println!("");
+        }
+ 
+        tx.send((tags, dur))?;
+
+        if !rx.is_empty() {
+            match rx.recv_timeout(Duration::from_millis(1)) {
+                Ok(Event::Set(s)) => match s {
+                    InputSetting::InversionMask(m) => tt.set_inversion_mask(m),
+                    InputSetting::Delay((ch, del)) => tt.set_delay(ch, del),
+                    InputSetting::Threshold((ch, th)) => tt.set_input_threshold(ch, th),
+                },
+                Ok(Event::Tick) => {}
+                Err(_) => {}
             }
-            Err(_) => break,
         }
     }
-    t.stop_timetags();
-    t.close();
+    tt.stop_timetags();
+    tt.close();
     Ok(())
 }
-
-/// Calculate the counts in a set of pattern masks, doing the calculations in parallel
-fn count_patterns(tags: &[Tag], patmasks: HashSet<u16>) -> HashMap<u16, u64> {
-    let mut hm = HashMap::<u16, u64>::new();
-    // Preallocate the hashmap so we can perform the calculations in parallel
-    for pat in patmasks {
-        match pat.count_ones() {
-            1 => {
-                hm.insert(pat, 0);
-            }
-            2 => {
-                hm.insert(pat, 0);
-            }
-            // TODO: Implement higher-order patterns
-            _ => {}
-        }
-    }
-    hm.par_iter_mut().for_each(|(pat, count)| {
-        match pat.count_ones() {
-            1 => {
-                *count +=
-                    pat::singles(&tags.clone(), mask_to_single(*pat).unwrap());
-            }
-            2 => {
-                let (ch_a, ch_b) = mask_to_pair(*pat).unwrap();
-                *count += pat::coincidence(&tags.clone(), ch_a, ch_b, 1, 0);
-            }
-            // TODO: Implement higher-order patterns
-            _ => {}
-        }
-    });
-    hm
-}
-
-

@@ -8,7 +8,6 @@ use futures::{AsyncReadExt, FutureExt};
 use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-
 use tagger_capnp::tag_server_capnp::{
     input_settings, publisher, service_pub, subscriber, subscription,
 };
@@ -16,6 +15,8 @@ use tagger_capnp::tag_server_capnp::{
 use crate::bit;
 use crate::data::PubData;
 use crate::{Event, InputSetting};
+use crate::{copier, processor};
+
 
 pub struct SubscriberHandle {
     client: subscriber::Client<::capnp::any_pointer::Owned>,
@@ -243,7 +244,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // spawn timer thread
     let (tx_event, rx_event) = flume::unbounded::<Event>();
-    crate::timer::main(std::time::Duration::from_millis(250), tx_event.clone())?;
+    //crate::timer::main(std::time::Duration::from_millis(1), tx_event.clone())?;
 
     // controller data sharing
     let data = Arc::new(Mutex::new(PubData {
@@ -266,18 +267,25 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let publisher: publisher::Client<_> = capnp_rpc::new_client(publisher_impl);
 
             // spawn controller thread
-            let (tx_pub, rx_pub) = flume::unbounded::<()>();
+            let (sender_raw, receiver_raw) = flume::bounded(5);
+            let (sender_tag, receiver_tag) = flume::unbounded();
+            let (sender_proc, receiver_proc) = flume::unbounded();
             let data1 = data.clone();
             std::thread::spawn(move || {
                 crate::controller::main(
-                    data1,
-                    cur_tagmask.clone(),
-                    cur_patmasks.clone(),
                     rx_event,
-                    tx_pub,
+                    sender_raw,
                 )
                 .unwrap();
             });
+            
+            copier::main(receiver_raw, sender_tag)?;
+            processor::main(receiver_tag,
+                sender_proc,
+                data1,
+                cur_tagmask.clone(),
+                cur_patmasks.clone()
+            )?;
 
             let handle_incoming = async move {
                 loop {
@@ -299,7 +307,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let send_to_subscribers = async move {
-                while let Ok(()) = rx_pub.recv_async().await {
+                while let Ok(()) = receiver_proc.recv_async().await {
                     let subscribers1 = subscribers.clone();
                     let subs = &mut subscribers.lock().subscribers;
                     for (&idx, mut subscriber) in subs.iter_mut() {
