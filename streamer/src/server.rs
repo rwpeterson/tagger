@@ -15,8 +15,7 @@ use tagger_capnp::tag_server_capnp::{
 use crate::bit;
 use crate::data::PubData;
 use crate::{Event, InputSetting};
-use crate::{copier, processor};
-
+use crate::processor;
 
 pub struct SubscriberHandle {
     client: subscriber::Client<::capnp::any_pointer::Owned>,
@@ -243,13 +242,14 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // spawn timer thread
-    let (tx_event, rx_event) = flume::unbounded::<Event>();
-    //crate::timer::main(std::time::Duration::from_millis(1), tx_event.clone())?;
+    let (sender_timer, receiver_timer) = flume::bounded(1);
+    let (sender_event, receiver_event) = flume::unbounded();
+    crate::timer::main(sender_timer.clone())?;
 
     // controller data sharing
     let data = Arc::new(Mutex::new(PubData {
         duration: 0,
-        tags: Box::new(capnp::message::Builder::new_default()),
+        tags: Vec::new(),
         patcounts: HashMap::new(),
     }));
 
@@ -263,26 +263,26 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .run_until(async move {
             let listener = tokio::net::TcpListener::bind(&addr).await?;
             let (publisher_impl, subscribers, cur_tagmask, cur_patmasks) =
-                PublisherImpl::new(tx_event.clone());
+                PublisherImpl::new(sender_event.clone());
             let publisher: publisher::Client<_> = capnp_rpc::new_client(publisher_impl);
 
             // spawn controller thread
             let (sender_raw, receiver_raw) = flume::bounded(5);
-            let (sender_tag, receiver_tag) = flume::unbounded();
+            //let (sender_tag, receiver_tag) = flume::unbounded();
             let (sender_proc, receiver_proc) = flume::unbounded();
             let data1 = data.clone();
             std::thread::spawn(move || {
                 crate::controller::main(
-                    rx_event,
+                    receiver_timer,
+                    receiver_event,
                     sender_raw,
                 )
                 .unwrap();
             });
             
-            copier::main(receiver_raw, sender_tag)?;
-            processor::main(receiver_tag,
+            //copier::main(receiver_raw, sender_tag)?;
+            processor::main(receiver_raw,
                 sender_proc,
-                data1,
                 cur_tagmask.clone(),
                 cur_patmasks.clone()
             )?;
@@ -307,7 +307,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let send_to_subscribers = async move {
-                while let Ok(()) = receiver_proc.recv_async().await {
+                while let Ok((dur, tags, patcounts)) = receiver_proc.recv_async().await {
                     let subscribers1 = subscribers.clone();
                     let subs = &mut subscribers.lock().subscribers;
                     for (&idx, mut subscriber) in subs.iter_mut() {
@@ -318,21 +318,20 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let mut msg = capnp::message::Builder::new_default();
                             let mut msg_bdr = msg.init_root::<service_pub::Builder>();
 
-                            let data1 = data.clone();
-                            let data = data1.lock();
+                            let tag_ser = tagtools::ser::newmsg(&tags);
 
                             let mut tag_bdr = msg_bdr.reborrow().init_tags();
-                            tag_bdr.reborrow().set_duration(data.duration);
+                            tag_bdr.reborrow().set_duration(dur);
                             tag_bdr.reborrow().set_tagmask(u16::MAX);
                             tag_bdr
                                 .reborrow()
-                                .set_tags(data.tags.get_root_as_reader()?)?;
+                                .set_tags(tag_ser.get_root_as_reader()?)?;
 
-                            let mut pats_bdr = msg_bdr.init_pats(data.patcounts.len() as u32);
-                            for (i, (&pat, &ct)) in data.patcounts.iter().enumerate() {
+                            let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);
+                            for (i, (&pat, &ct)) in patcounts.iter().enumerate() {
                                 let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
                                 pat_bdr.reborrow().set_patmask(pat);
-                                pat_bdr.reborrow().set_duration(data.duration);
+                                pat_bdr.reborrow().set_duration(dur);
                                 pat_bdr.reborrow().set_count(ct);
                             }
 

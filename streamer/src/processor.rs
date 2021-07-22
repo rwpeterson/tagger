@@ -3,14 +3,13 @@ use parking_lot::{Mutex, RwLock};
 use std::collections::HashSet;
 use std::sync::Arc;
 use tagtools::Tag;
-use tagtools::ser::fillmsg;
+use std::collections::HashMap;
 
-use crate::data::{count_patterns, PubData};
+use crate::data::count_patterns;
 
 pub fn main(
     receiver: flume::Receiver<(Vec<Tag>, u64)>,
-    sender: flume::Sender<()>,
-    data: Arc<Mutex<PubData>>,
+    sender: flume::Sender<(u64, Vec<Tag>, HashMap<u16,u64>)>,
     cur_tagmask: Arc<RwLock<u16>>,
     cur_patmasks: Arc<RwLock<HashSet<u16>>>,
 ) -> Result<()> {
@@ -23,16 +22,11 @@ pub fn main(
                 let p = cur_patmasks.read();
                 let patmasks = (*p).clone();
 
-                let mut data = data.lock();
+                let patcounts = count_patterns(&tags.clone(), patmasks);
 
-                fillmsg(&mut data.tags, &tags.clone());
-
-                data.patcounts = count_patterns(&tags.clone(), patmasks);
-
-                data.duration = dur;
 
                 // Signal to publisher
-                sender.send(()).unwrap();
+                sender.send((dur, tags, patcounts)).unwrap();
             },
             Err(_) => break,
         }

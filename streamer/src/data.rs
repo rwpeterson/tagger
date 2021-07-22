@@ -21,7 +21,7 @@ pub struct LogicPattern {
 /// instead of passing them back and forth in memory several times first.
 pub struct PubData {
     pub duration: u64,
-    pub tags: Box<message::Builder<message::HeapAllocator>>,
+    pub tags: Vec<Tag>,
     pub patcounts: HashMap<u16,u64>,
 }
 
