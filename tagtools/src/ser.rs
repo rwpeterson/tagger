@@ -56,9 +56,9 @@ pub fn fillmsg(message: &mut Box<message::Builder<message::HeapAllocator>>, tags
     // store 2^27 Tags per List. But, by using a List(List(Tag)), we can overcome
     // this size limitation. `list_list` of Tag tops out at ~ 2 EiB, while the
     // maximum Cap'n Proto filesize overall is ~ 16 EiB.
-    let exp: u32 = 27;
-    let full_lists: u32 = (tags.len() / 2usize.pow(exp)) as u32;
-    let remainder: u32 = (tags.len() % 2usize.pow(exp)) as u32;
+    let n = (1 << 28) - 1;
+    let full_lists: u32 = (tags.len() / n) as u32;
+    let remainder: u32 = (tags.len() % n) as u32;
     let lists: u32 = if remainder > 0 {
         full_lists + 1
     } else {
@@ -66,7 +66,7 @@ pub fn fillmsg(message: &mut Box<message::Builder<message::HeapAllocator>>, tags
     };
 
     let mut tags_builder = message_builder.init_tags(lists);
-    for (i, chunk) in tags.chunks(2usize.pow(exp)).enumerate() {
+    for (i, chunk) in tags.chunks(n).enumerate() {
         let mut chunk_builder = tags_builder.reborrow().init(i as u32, chunk.len() as u32);
         for (j, tag) in chunk.iter().enumerate() {
             let mut tag_builder = chunk_builder.reborrow().get(j as u32);
