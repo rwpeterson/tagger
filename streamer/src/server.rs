@@ -3,6 +3,7 @@
 // Copyright (c) 2013-2016 Sandstorm Development Group, Inc. and contributors
 
 use capnp::capability::Promise;
+use capnp::message;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::{AsyncReadExt, FutureExt};
 use parking_lot::{Mutex, RwLock};
@@ -16,6 +17,8 @@ use crate::bit;
 use crate::data::PubData;
 use crate::{Event, InputSetting};
 use crate::processor;
+
+const FIRST_SEGMENT_WORDS: usize = 1 << 24; // 2^24 words = 128 MiB
 
 pub struct SubscriberHandle {
     client: subscriber::Client<::capnp::any_pointer::Owned>,
@@ -307,33 +310,41 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let send_to_subscribers = async move {
+                // Use one allocator, don't make a new one each loop
+                // Additionally, the user-supplied buffer for the first segment
+                // reduces cost of zeroing-out new memory allocations
+                let mut b = capnp::Word::allocate_zeroed_vec(FIRST_SEGMENT_WORDS);
+                let mut alloc = message::ScratchSpaceHeapAllocator::new(
+                    capnp::Word::words_to_bytes_mut(&mut b)
+                );
                 while let Ok((dur, tags, patcounts)) = receiver_proc.recv_async().await {
                     let subscribers1 = subscribers.clone();
                     let subs = &mut subscribers.lock().subscribers;
+                    // Make the message once for all the subs
+                    let mut msg = capnp::message::Builder::new(&mut alloc);
+                    let mut msg_bdr = msg.init_root::<service_pub::Builder>();
+
+                    // TODO: Do this inline with my own allocator
+                    let tag_ser = tagtools::ser::newmsg(&tags);
+
+                    let mut tag_bdr = msg_bdr.reborrow().init_tags();
+                    tag_bdr.reborrow().set_duration(dur);
+                    tag_bdr.reborrow().set_tagmask(u16::MAX);
+                    tag_bdr
+                        .reborrow()
+                        .set_tags(tag_ser.get_root_as_reader()?)?;
+
+                    let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);
+                    for (i, (&pat, &ct)) in patcounts.iter().enumerate() {
+                        let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
+                        pat_bdr.reborrow().set_patmask(pat);
+                        pat_bdr.reborrow().set_duration(dur);
+                        pat_bdr.reborrow().set_count(ct);
+                    }
                     for (&idx, mut subscriber) in subs.iter_mut() {
                         if subscriber.requests_in_flight < 5 {
                             subscriber.requests_in_flight += 1;
                             let mut request = subscriber.client.push_message_request();
-
-                            let mut msg = capnp::message::Builder::new_default();
-                            let mut msg_bdr = msg.init_root::<service_pub::Builder>();
-
-                            let tag_ser = tagtools::ser::newmsg(&tags);
-
-                            let mut tag_bdr = msg_bdr.reborrow().init_tags();
-                            tag_bdr.reborrow().set_duration(dur);
-                            tag_bdr.reborrow().set_tagmask(u16::MAX);
-                            tag_bdr
-                                .reborrow()
-                                .set_tags(tag_ser.get_root_as_reader()?)?;
-
-                            let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);
-                            for (i, (&pat, &ct)) in patcounts.iter().enumerate() {
-                                let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
-                                pat_bdr.reborrow().set_patmask(pat);
-                                pat_bdr.reborrow().set_duration(dur);
-                                pat_bdr.reborrow().set_count(ct);
-                            }
 
                             request.get().set_message(msg.get_root_as_reader()?)?;
 
