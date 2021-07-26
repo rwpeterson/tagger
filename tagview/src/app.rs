@@ -33,7 +33,7 @@ pub struct App<'a> {
     pub save: bool,
     pub filepath: Option<path::PathBuf>,
     pub flags: HashSet<String>,
-    pub tag_rate: f64,
+    pub tag_rate: usize,
     pub data_size: usize,
     pub hist_len: usize,
     pub singles: Vec<HashMap<u8, f64>>,
@@ -61,7 +61,7 @@ impl<'a> App<'a> {
             save: false,
             filepath: None,
             flags: HashSet::new(),
-            tag_rate: 0.0,
+            tag_rate: 0,
             data_size: 0,
             hist_len: 80,
             singles: Vec::new(),
@@ -115,6 +115,7 @@ impl<'a> App<'a> {
                 }
             }
         }
+        self.tag_rate = tags.len();
 
         // Save data to disk
         if self.save == true {

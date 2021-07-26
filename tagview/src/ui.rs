@@ -57,7 +57,7 @@ fn draw_titlebar<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
             Span::raw("   "),
             Span::styled("Rate:", Style::default().add_modifier(Modifier::UNDERLINED)),
             Span::raw(" "),
-            Span::styled(numfmt(app.tag_rate, 3), Style::default()),
+            Span::styled(format!("{}", app.tag_rate), Style::default()),
             Span::styled("Tag/s", Style::default()),
             Span::raw("   "),
             Span::styled("Acq. size:", Style::default().add_modifier(Modifier::UNDERLINED)),
