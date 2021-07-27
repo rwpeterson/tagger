@@ -1,5 +1,8 @@
+//! Bitmask tools for working with patterns of channels
+
 use bit_iter::BitIter;
 
+/// Convert channels into a bitmask
 pub fn chans_to_mask(chs: &[u8]) -> u16 {
     let mut m = 0;
     for ch in chs {
@@ -8,7 +11,7 @@ pub fn chans_to_mask(chs: &[u8]) -> u16 {
     return m;
 }
 
-/// Returns a single channel if the mask is one channel
+/// Returns a single channel if the mask has only one channel
 pub fn mask_to_single(m: u16) -> Option<u8> {
     match m.count_ones() {
         1 => {
@@ -19,7 +22,7 @@ pub fn mask_to_single(m: u16) -> Option<u8> {
     }
 }
 
-/// Returns a pair of channels if the mask is two channels
+/// Returns a pair of channels if the mask has only two channels
 pub fn mask_to_pair(m: u16) -> Option<(u8, u8)> {
     match m.count_ones() {
         2 => {

@@ -12,21 +12,16 @@ use zstd::stream;
 /// Deserialize from .tags format: zstd-compressed Cap'n Proto tags
 ///
 /// Like many compressors, `zstd`'s API is linear under concatenation, in that
-/// `zstd(m1 + m2) == zstd(m1) + zstd(m2)` (ignoring that the compressed bytes
-/// will actually differ). So while we may write repeated compressed messages
-/// when saving data, it suffices to decompress the entire stream at once.
+/// `unzstd(m1.z + m2.z) == unzstd(m1.z) + unzstd(m2.z) == m1 + m2`.
+/// So while we may write repeated compressed messages when saving data, it
+/// suffices to decompress the entire stream at once.
 pub fn tags(rdr: impl Read) -> Result<Vec<Tag>> {
     let mut zrdr = stream::read::Decoder::new(rdr)?;
     let tags = tags_uncompressed(&mut zrdr)?;
     Ok(tags)
 }
 
-/// Deserialize to uncompressed, unpacked Cap'n Proto tags.
-///
-/// As an implementation detail, tags are serialized as a `List(List(Tag))`,
-/// as there is a 4 GiB limit per `struct_list`.  This deserializes to a
-/// flattened `Vec<Tag>`, and furthermore concatenates all messages in the
-/// buffer into one `Vec`.
+/// Deserialize to uncompressed, unpacked Cap'n Proto tags
 pub fn tags_uncompressed(rdr: &mut impl Read) -> Result<Vec<Tag>> {
     let mut brdr = BufReader::new(rdr);
     let mut tags: Vec<Tag> = Vec::new();
