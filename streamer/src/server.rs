@@ -14,7 +14,6 @@ use tagger_capnp::tag_server_capnp::{
 };
 
 use crate::bit;
-use crate::data::PubData;
 use crate::{Event, InputSetting};
 use crate::processor;
 
@@ -249,13 +248,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (sender_event, receiver_event) = flume::unbounded();
     crate::timer::main(sender_timer.clone())?;
 
-    // controller data sharing
-    let data = Arc::new(Mutex::new(PubData {
-        duration: 0,
-        tags: Vec::new(),
-        patcounts: HashMap::new(),
-    }));
-
     let addr = args[2]
         .to_socket_addrs()
         .unwrap()
@@ -273,7 +265,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let (sender_raw, receiver_raw) = flume::bounded(5);
             //let (sender_tag, receiver_tag) = flume::unbounded();
             let (sender_proc, receiver_proc) = flume::unbounded();
-            let data1 = data.clone();
             std::thread::spawn(move || {
                 crate::controller::main(
                     receiver_timer,
@@ -320,30 +311,34 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 while let Ok((dur, tags, patcounts)) = receiver_proc.recv_async().await {
                     let subscribers1 = subscribers.clone();
                     let subs = &mut subscribers.lock().subscribers;
-                    // Make the message once for all the subs
-                    let mut msg = capnp::message::Builder::new(&mut alloc);
-                    let mut msg_bdr = msg.init_root::<service_pub::Builder>();
-
-                    // TODO: Do this inline with my own allocator
-                    let tag_ser = tagtools::ser::newmsg(&tags);
-
-                    let mut tag_bdr = msg_bdr.reborrow().init_tags();
-                    tag_bdr.reborrow().set_duration(dur);
-                    tag_bdr.reborrow().set_tagmask(u16::MAX);
-                    tag_bdr
-                        .reborrow()
-                        .set_tags(tag_ser.get_root_as_reader()?)?;
-
-                    let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);
-                    for (i, (&pat, &ct)) in patcounts.iter().enumerate() {
-                        let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
-                        pat_bdr.reborrow().set_patmask(pat);
-                        pat_bdr.reborrow().set_duration(dur);
-                        pat_bdr.reborrow().set_count(ct);
-                    }
+                    
                     for (&idx, mut subscriber) in subs.iter_mut() {
                         if subscriber.requests_in_flight < 5 {
                             subscriber.requests_in_flight += 1;
+
+                            // Only make the message if the sub isn't swamped
+                            let mut msg = capnp::message::Builder::new(&mut alloc);
+                            let mut msg_bdr = msg.init_root::<service_pub::Builder>();
+
+                            let mut tag_bdr = msg_bdr.reborrow().init_tags();
+                            tag_bdr.reborrow().set_duration(dur);
+                            tag_bdr.reborrow().set_tagmask(subscriber.tagmask);
+                            let outer_bdr = tag_bdr.reborrow().init_tags().init_tags(1);
+                            let mut inner_bdr = outer_bdr.init(0, tags.len() as u32);
+                            for (i, tag) in tags.iter().enumerate() {
+                                let mut tag_bdr = inner_bdr.reborrow().get(i as u32);
+                                tag_bdr.reborrow().set_time(tag.time);
+                                tag_bdr.reborrow().set_channel(tag.channel);
+                            }
+
+                            let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);
+                            for (i, (&pat, &ct)) in patcounts.iter().enumerate() {
+                                let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
+                                pat_bdr.reborrow().set_patmask(pat);
+                                pat_bdr.reborrow().set_duration(dur);
+                                pat_bdr.reborrow().set_count(ct);
+                            }
+
                             let mut request = subscriber.client.push_message_request();
 
                             request.get().set_message(msg.get_root_as_reader()?)?;

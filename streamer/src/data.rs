@@ -1,4 +1,3 @@
-use capnp::message;
 use std::collections::{HashMap, HashSet};
 use tagtools::{bit, pat, Tag};
 

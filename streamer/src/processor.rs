@@ -1,5 +1,5 @@
 use anyhow::Result;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tagtools::Tag;
