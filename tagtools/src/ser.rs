@@ -2,7 +2,7 @@
 
 use crate::Tag;
 use anyhow::Result;
-use capnp::{list_list, message, serialize, struct_list};
+use capnp::{message, serialize};
 use std::io::Write;
 use tagger_capnp::tags_capnp::tags;
 use zstd::stream;
@@ -39,8 +39,8 @@ pub fn tsv(wtr: &mut csv::Writer<impl Write>, tags: &[Tag]) -> Result<()> {
 
 /// Allocate and build a new message; return a pointer to it
 #[inline(always)]
-pub fn newmsg(tags: &[Tag]) -> Box<message::Builder<message::HeapAllocator>> {
-    let mut message = Box::new(message::Builder::new_default());
+pub fn newmsg(tags: &[Tag]) -> message::Builder<message::HeapAllocator> {
+    let mut message = message::Builder::new_default();
     fillmsg(&mut message, tags);
     return message;
 }
@@ -49,9 +49,7 @@ pub fn newmsg(tags: &[Tag]) -> Box<message::Builder<message::HeapAllocator>> {
 pub fn fillmsg<'a, A>(
     message: &'a mut message::Builder<A>,
     tags: &[Tag],
-) -> list_list::Builder<'a, struct_list::Owned<tags::tag::Owned>>
-where A: message::Allocator
-{
+) where A: message::Allocator {
     let message_builder = message.init_root::<tags::Builder>();
 
     // Cap'n Proto `struct_list`s are limited to a max of 2^29 - 1 words of data,
@@ -74,5 +72,4 @@ where A: message::Allocator
             tag_builder.set_channel(tag.channel)
         }
     }
-    return tags_builder
 }
