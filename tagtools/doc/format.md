@@ -1,19 +1,21 @@
-# Binary tags format
+# The `.tags.zst` format
 
-## tl;dr
+We store tags on-disk using a schema implemented by [Cap'n Proto][c]
+(the "`.tags`" part), additionally compressed with [Zstandard][z]
+(the "`.zst`" part). This document describes the format in detail,
+gives some rationale for its design choices, and presents some
+benchmarks against other candidate formats.
 
-We store tags on-disk using a schema implemented by [Cap'n Proto][c],
-additionally compressed with [Zstandard][z].
+These files consistently use the `.tags.zst` extension, and reference
+implementations of tools to work with them are in the `tagtools`
+crate. The `.capnp` files that define the schema are in the
+`tagger_capnp` crate.
 
-These files consistently use the `.tags` extension, and reference
-implementations of tools to work with them are in the tagtools-rs
-repository.
-
-You can generate code to use them with any supported language: all you
-need is the `tags.capnp` file. We use the default unpacked serialization,
-and compress this further with Zstandard. You can use either your
-language's bindings to Zstandard, or decompress tags yourself before
-deserializing.
+You can generate code to work with the format with any supported language:
+all you need is the `tags.capnp` file. We use the default unpacked
+serialization, and compress this further with Zstandard. You can use
+your preferred language's bindings to Zstandard, or decompress tags
+yourself with the `zstd` system utility before deserializing.
 
 If your language does not have Cap'n Proto support, `capnc` can tell
 you the bit layout of the message format, allowing you to write a parser
@@ -46,9 +48,10 @@ amounts of disk space, and are unwieldy to analyze as well.
 Using a binary format is more efficient from two points of view. One is
 that a more space-efficient encoding can be chosen, using less on-disk
 space than something like a CSV. The other is that binary formats are
-significantly less computationally-intensive to parse, meaning there is
-much less overhead at a constant file size.  There is little limitation
-on how to choose such a format. Here are some realistic choices:
+significantly less computationally-intensive to parse and compress,
+meaning there is much less overhead at a constant file size. There is
+little limitation on how to choose such a format. Here are some realistic
+choices:
 
 ### DIY format
 
@@ -93,14 +96,15 @@ as HDF. HDF seems ideally-suited to our use case, but in practice has
 there is only the single reference implementation in C. Complexity in
 the spec leads to bugs, deviation from the spec in the implementaiton,
 and (as many anecdotes attest) data corruption. Bad news! Its speed
-of writing and reading data is also not optimal.
+of writing and reading data is also relatively slow, and we need to save
+up to 10 million tags per second.
 
 The lesson here is that scientific software is often not that great,
 has a small userbase who may have little knowledge of programming or
 software engineering practices, and may only have good performance in a
 few domains (large datasets, efficient computation) at the expense
 of others (easy API, stability, security). We should not be too quick to
-cargo-cult FAANG tools and software engineering practices in response,
+cargo-cult bigtech tools and software engineering practices in response,
 but identifying where they have solved useful general-purpose problems
 can help save us time and effort.
 
@@ -121,19 +125,20 @@ forwards and backwards compatibility, and are proven in high-performance,
 high-reliability applications in the modern Web.
 
 Recent preference seems to point towards the "zero-copy" formats,
-over the older Protocol Buffers (Protobufs). Google's Protobufs have
+over the older Protocol Buffers ("Protobufs"). Google's Protobufs have
 an in-memory representation of the message that is different than the
 on-the-wire representation, so the message must be parsed on each end,
 with a small performance penalty.  As the parsers must also be generated
 for each protocol you specify, the generated code can be quite large.
 
 Of the zero-copy formats, Cap'n Proto is the oldest. The author
-wrote Protobuf v2 at Google before leaving to design his own format;
-the company was acquired by Cloudflare, who maintains Cap'n Proto
-and uses it internally. Flatbuffers are a newer format from Google,
-similar to Cap'n Proto in design, with an original application to game
-programming. Finally, SBE is a financial industry standard with an
-emphasis on raw speed and reliability, e.g. in high-frequency trading.
+wrote Protobuf v2 at Google before leaving to design his own format
+at a startup he founded; the company was acquired by Cloudflare, who
+maintains Cap'n Proto and uses it internally. Flatbuffers are a newer
+format from Google, similar to Cap'n Proto in design, with an original
+application to game programming. Finally, SBE is a financial industry
+standard with an emphasis on raw speed and reliability, e.g. in
+high-frequency trading.
 
 The upside of these formats is that a schema file both documents and
 defines the format for you, generates code to interface with it (including
@@ -184,7 +189,7 @@ free, compared to the speed of writing to disk.
 ## Benchmarks
 
 We start with 500k tags, stored as tab-separated values with Windows
-line endings (\\r\\n). Note that Unix line endings (\\n) are one byte
+line endings ("\\r\\n"). Note that Unix line endings ("\\n") are one byte
 smaller. Serialized tags are written to an uncompressed file, and
 the compression time and performance is measured separately with the
 `zstd` utility rather than library bindings in the language used for
@@ -238,9 +243,15 @@ ratio, has excellent performance at its default compression level of
 at the faster level 1 and fastest level (-5), we are leaving space
 savings on the table.
 
-The combination of Cap'n Proto unpacked encoding and Zstandard compression
-is the best performer, considering both compression ratio and the speed
-of the compression step. In addition, the wire format of Cap'n Proto
+The zero-copy formats (Cap'n Proto and flatbuffers) combined with Zstandard
+compression are the best performers, considering both compression ratio and
+the speed of the compression step. As a tiebreaker, we note that flatbuffers
+support only 2 GiB messages, as they are a 32-bit format. We can easily
+acquire more than 2 GiB of tags in a short time, so this is unacceptable.
+Cap'n Proto is a 64-bit format, and while there are a few nuances, in
+principle messages can exceed 1 EiB in size.
+
+For users of an unsupported language, the wire format of Cap'n Proto
 messages can be determined by:
 
     capnp compile -ocapnp myschema.capnp
@@ -249,7 +260,10 @@ which returns an annotated version of the schema. This allows you to write
 a simple parser to work with the format in a language lacking support.
 Zstandard has bindings for essentially every language (including
 Mathematica, etc.), and one can always use the `zstd` system utility to
-decompress separately.
+decompress separately. For our purposes, we store this annotated version
+of the schema, so anyone with a copy of our source code repository can
+parse the file by hand if need be, without even needing to run the `capnp`
+utility.
 
 ### Large file performance
 
@@ -259,12 +273,11 @@ serializes it with either Cap'n Proto, Protobuf, or flatbuffer,
 stream-compresses it with zstd, and finally writes it to a file. Test was
 on a T14 Gen 1 with Ryzen 7 Pro 4750U and NVME SSD. `Tag` is defined by
 `struct Tag { time: i64, channel: u8 }` and the schema files specify
-the closest equivalent to `Vec<Tag>`. `tsv` uses Cap'n Proto, `tsv2`
-uses Protobuf, and `tsv4` uses flatbuffers:
+the closest equivalent to `Vec<Tag>`.
 
-    time ./tsv  tags_35M.tsv > tags_35M.cptags # 13.097 sec
-    time ./tsv2 tags_35M.tsv > tags_35M.pbtags # 27.866 sec
-    time ./tsv4 tags_35M.tsv > tags_35M.pbtags # 12.525 sec
+    time ./tsv_capnp tags_35M.tsv > tags_35M.cptags # 13.097 sec
+    time ./tsv_proto tags_35M.tsv > tags_35M.pbtags # 27.866 sec
+    time ./tsv_flatb tags_35M.tsv > tags_35M.fbtags # 12.525 sec
 
 The benchmark was ran twice (repeated in the order listed) to ensure
 there were no effects due to caching.
@@ -277,9 +290,9 @@ there were no effects due to caching.
 | CSV ->  flatbuffer + zstd | 12.525   |   128     | 4.73  |
 
 The 2x speed of the zero-copy formats  over Protobuf is notable (and
-independent of a packed or unpacked format). It is likely worse, as
-both programs have the same costly CSV parsing as a constant factor. To
-be fair, one should be wary of my implementation. Perhaps the Protobuf
+independent of a packed or unpacked format). It is likely even better,
+as both programs have the same costly CSV parsing as a constant factor.
+To be fair, one should be wary of my implementation. Perhaps the Protobuf
 code could be improved, and more detailed profiling could determine if
 indeed its extra parsing step is the bottleneck here. Supposedly, in
 Protobuf it's more performant to use parallel arrays instead of an array
@@ -289,17 +302,6 @@ time-order. Likewise, the 10% larger file size with Protobuf is consistent
 with the first test dataset above, and unlikely to change.  This is
 a substantial amount of space savings with Cap'n Proto/flatbuffers,
 and hard to say no to.
-
-As for which zero-copy format to choose, it seems to be a toss-up.
-They have near-identical performance and speed, and despite flatbuffers
-being a Google project, they do not have notably better language uptake
-than Cap'n Proto. At the RPC level, Cap'n Proto seems more capable,
-although this is likely irrelevant for us. The encodings are roughly
-equivalent for our purposes (potentially hand-writing some parsers for
-a couple languages). To break the tie, I observe that while the Rust
-APIs are both easy enough to work with, the autogenerated flatbuffer
-code displays some (harmless) debug warnings, which is irritating since
-one shouldn't edit that file to disable them. So, Cap'n Proto it is.
 
 ## Packed or unpacked?
 
