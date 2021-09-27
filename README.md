@@ -11,7 +11,8 @@ If you are new to Rust, see Getting Started at the bottom.
 This repository contains several libraries and applications organized
 in one Cargo workspace. [Cargo][c] is Rust's package manager, and a
 [workspace][w] is a set of multiple libraries or applications ("crates")
-that are grouped together.
+that are grouped together, e.g. so that they share common library code
+in the same repository.
 
 ## End-user crates
 
@@ -19,17 +20,20 @@ that are grouped together.
 
 Server program that controls the time tagger. Clients can subscribe to
 different types of data (raw time tags, counts in specified coincidence
-patterns, etc) simultaneously. Why client/server? On the same computer
-it's somewhat redundant, but this allows a server on gigabit local network
-to stream tags to another computer. This keeps you from needing to manage
-stored data on both your local lab computer controlling the experiment
-and the remote computer next to the tagger/detectors: it can all stay on
-the lab control computer.
+patterns, etc) simultaneously.
+
+#### Why client/server?
+
+* A server on gigabit local network can stream tags to a client computer on the network
+* Multiple different clients can subscribe simultaneously; the server takes the
+  data everyone has subscribed to and parcels it out
+* If you have particular needs with your client, you can write your own using
+  the API specified in the capnp schema files.
 
 ### `tagtools`
 
 Installs two helper utilities that convert from CSV to our compressed binary
-format (`txt2tags`) and from compressed binary format to CSV (`tcat`)
+format (`txt2tags`) and from compressed binary format to CSV (`tcat`).
 
 ### `tagview`
 
@@ -70,26 +74,69 @@ transfer rate of the USB 2.0 interface.
 
 ## Getting started
 
-1. Install the Rust toolchain from [rustup.rs][r]
-2. Install system dependencies
-  * [capnp][p] (optional: if using your own scripts in e.g. Python to read binary format)
-  * [zstd][z] (necessary)
-3. Clone the repository using [`git`][g] and change directory into it
+### Install Rust toolchain
 
+Get the Rust toolchain for your system at [rustup.rs][r].
+
+### Install system dependencies
+
+#### Zstandard (mandatory)
+
+The [zstd][z] compression library is necessary.
+
+#### capnproto (optional)
+
+Install [capnp][p] if using your own code (e.g. Python) to use my APIs.
+
+#### Proprietary vendor libraries (optional: time tagger control only)
+
+Download the [vendor libraries][q] to copy over in a later step.
+
+Note: Because these libraries cannot be freely distributed by me, the entire installation
+process is somewhat complicated. Sorry. If you are not doing time tagger control at all
+(or even just on a client-only computer), replace everything below with the one-liner
+`cargo install --git https://git.sr.ht/~rwp/tagger <crate>` for each crate you want to (re)install.
+
+### Installation
+
+#### Clone the repository
+
+Open a shell. Using [git][g], clone the repository locally and change directory into it
+
+        cd /path/to/my/stuff
         git clone https://git.sr.ht/~rwp/tagger
         cd tagger
 
-4. If using for time tagger control, copy over proprietary vendor libraries
+#### Copy over vendor libraries
 
-        mkdir lib
+If using for time tagger control, download and copy over [proprietary vendor libraries][q]
+
+        mkdir -p lib
         cp /path/to/CTimeTagLib.lib lib  # Windows library
         cp /path/to/libtimetag64.so lib  # Linux library
 
-4. Compile and install the crates you want (they will then be available in your shell's PATH)
+#### Compile and install the crates you want
 
-        cargo install --path ./tagtools
-        cargo install --path ./streamer
-        cargo install --path ./tagview
+Pick which crates you want to install:
+
+        cargo install --path ./<crate>
+        cargo install --path ./streamer # for example
+        cargo install --path ./tagview # etc...
+
+Installed crates will then be available in your shell's PATH, e.g. just run `tagview`/`tagview.exe`
+
+#### Update/uninstall
+
+If you need to update, pull the changes via git and then reinstall everything
+
+        cd /path/to/tagger
+        git pull
+        cargo install --path ./<crate>
+        cargo install --path ./streamer # for example
+
+To uninstall, simply
+
+        cargo uninstall <crate>
 
 
 [c]: https://doc.rust-lang.org/cargo/
