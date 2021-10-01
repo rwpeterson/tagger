@@ -1,2 +1,2 @@
 [workspace]
-members = [ "logicbatch", "streamer", "timetag", "tagger_capnp", "tagserver", "tagtools", "tagview" ]
+members = [ "logicbatch", "streamer", "timetag", "tagger_capnp", "tagsave", "tagserver", "tagtools", "tagview" ]

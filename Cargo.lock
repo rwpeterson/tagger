@@ -142,6 +142,7 @@ dependencies = [
  "libc",
  "num-integer",
  "num-traits",
+ "serde",
  "time",
  "winapi",
 ]
@@ -458,6 +459,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "humantime"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
+
+[[package]]
+name = "humantime-serde"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac34a56cfd4acddb469cc7fff187ed5ac36f498ba085caf8bbc725e3ff474058"
+dependencies = [
+ "humantime",
+ "serde",
 ]
 
 [[package]]
@@ -1021,6 +1038,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "tagsave"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "argh",
+ "bit-iter",
+ "capnp",
+ "capnp-rpc",
+ "chrono",
+ "flume",
+ "futures",
+ "parking_lot",
+ "serde",
+ "tagger_capnp",
+ "tagtools",
+ "tokio",
+ "tokio-util",
+ "toml",
+]
+
+[[package]]
 name = "tagserver"
 version = "0.1.0"
 dependencies = [
@@ -1049,8 +1087,11 @@ dependencies = [
  "bencher",
  "bit-iter",
  "capnp",
+ "chrono",
  "csv",
+ "humantime-serde",
  "itertools",
+ "serde",
  "tagger_capnp",
  "zstd",
 ]
