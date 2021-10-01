@@ -9,14 +9,13 @@ use parking_lot::Mutex;
 use std::path::Path;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
-use tagtools::{bit::chans_to_mask, Tag};
+use tagtools::{bit::chans_to_mask, Tag, cfg};
 use tokio::fs::File;
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 
 
 use crate::Cli;
-use crate::config::RunConfig;
 
 struct Client {
     receiver: mpsc::UnboundedReceiver<ClientMessage>,
@@ -196,14 +195,18 @@ impl Client {
                 let mut f = File::open(path).await?;
                 let mut s = String::new();
                 tokio::io::AsyncReadExt::read_to_string(&mut f, &mut s).await?;
-                let config: RunConfig = toml::de::from_str(&s)?;
+                let config: cfg::Run = toml::de::from_str(&s)?;
 
                 let mut pats = Vec::new();
-                for ch in config.singles {
-                    pats.push(chans_to_mask(&[ch]));
+                for s in config.singles {
+                    if let cfg::Single::Channel(ch) = s {
+                        pats.push(chans_to_mask(&[ch]));
+                    }
                 }
-                for (ch_a, ch_b) in config.coincidences {
-                    pats.push(chans_to_mask(&[ch_a, ch_b]));
+                for c in config.coincidences {
+                    if let cfg::Coincidence::Channels((ch_a, ch_b)) = c {
+                        pats.push(chans_to_mask(&[ch_a, ch_b]));
+                    }
                 }
                 
                 // Assemble the request
