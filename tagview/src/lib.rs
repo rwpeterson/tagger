@@ -1,7 +1,6 @@
 pub mod app;
 pub mod client;
 pub mod save;
-pub mod config;
 pub mod timer;
 pub mod ui;
 
