@@ -1,4 +1,5 @@
 pub mod bit;
+pub mod cfg;
 pub mod de;
 pub mod pat;
 pub mod ser;
