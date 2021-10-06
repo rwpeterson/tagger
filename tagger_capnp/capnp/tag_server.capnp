@@ -2,6 +2,8 @@
 
 using Tags = import "tags.capnp".Tags;
 
+# Job submission API. This is deprecated but retained for compatibility with old code.
+
 struct Job {
     id         @0 :UInt64        =0;     # Job id
     patterns   @1 :List(UInt16);         # List of bitmasks of channels
@@ -68,8 +70,10 @@ interface Tagger {
     getresults   @3 (jobid :UInt64) -> (payload :JobPayload);
 }
 
+# Publisher-subscriber API. This is what current programs use
+
 # Over-network tag and pattern streaming
-# Warning: This will likely only work on gigabit lan or localhost in tag mode
+# Warning: Tag streaming will likely only work on gigabit lan or localhost
 # Note: Conveniently, this follows the capnproto-rust pubsub example
 # exactly. We intend this for tags but because of the generic parameter
 # we can use it for anything.
@@ -98,8 +102,8 @@ interface Subscriber(T) {
 
 struct InputState {
     inversionmask @0 :UInt16;
-    delays @1        :List(UInt32);
-    thresholds @2    :List(Float64);
+    delays        @1 :List(UInt32);
+    thresholds    @2 :List(Float64);
 }
 
 struct InputSettings {
@@ -127,7 +131,10 @@ struct ChannelThreshold {
 
 struct ServiceSub {
     tagmask  @0 :UInt16 = 0;
-    patmasks @1 :List(UInt16);
+    patmasks :union {
+        bare     @1 :List(UInt16);
+        windowed @2 :List(LogicPattern);
+    }
 }
 
 struct ServicePub {
@@ -143,6 +150,7 @@ struct TagPattern {
 
 struct LogicPattern {
     patmask  @0 :UInt16;
-    duration @1 :UInt64;
-    count    @2 :UInt64;
+    duration @1 :UInt64 = 0;
+    count    @2 :UInt64 = 0;
+    window   @3 :UInt32 = 0;
 }
