@@ -56,7 +56,7 @@ pub enum RunLimit {
     #[serde(with = "humantime_serde")]
     Duration(Duration),
     SinglesLimit(u8, u64),
-    CoincidenceLimit(u8, u8, u64),
+    CoincidenceLimit(u8, u8, u32, u64),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -72,11 +72,12 @@ pub enum Single {
     ChannelCounts((u8, u64)),
 }
 
-/// Specify two channels, or specify two channels with some number of coincidences
+/// Specify two channels, two and a window, or two and a window and counts
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum Coincidence {
     Channels((u8, u8)),
-    ChannelsCounts((u8, u8, u64)),
+    ChannelsWin((u8, u8, u32)),
+    ChannelsCounts((u8, u8, u32, u64)),
 }
 
 
