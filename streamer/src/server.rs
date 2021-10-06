@@ -10,7 +10,7 @@ use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{
-    input_settings, publisher, service_pub, subscriber, subscription,
+    input_settings, publisher, service_pub, service_sub, subscriber, subscription,
 };
 
 use crate::bit;
@@ -23,7 +23,7 @@ pub struct SubscriberHandle {
     client: subscriber::Client<::capnp::any_pointer::Owned>,
     requests_in_flight: i32,
     tagmask: u16,
-    patmasks: Vec<u16>,
+    patmasks: Vec<(u16, Option<u32>)>,
 }
 
 pub struct SubscriberMap {
@@ -68,10 +68,10 @@ struct PublisherImpl {
 
     // Union of subscriber's data subscriptions
     cur_tagmask: Arc<RwLock<u16>>,
-    cur_patmasks: Arc<RwLock<HashSet<u16>>>,
+    cur_patmasks: Arc<RwLock<HashSet<(u16, Option<u32>)>>>,
 
     // State management of input properties
-    // (tagger API has setters but no getters)
+    // (tagger API has individual setters and global getter)
     invmask: Arc<RwLock<u16>>,
     delays: Arc<RwLock<Vec<u32>>>,
     thresholds: Arc<RwLock<Vec<f64>>>,
@@ -87,7 +87,7 @@ impl PublisherImpl {
         PublisherImpl,
         Arc<Mutex<SubscriberMap>>,
         Arc<RwLock<u16>>,
-        Arc<RwLock<HashSet<u16>>>,
+        Arc<RwLock<HashSet<(u16, Option<u32>)>>>,
     ) {
         let subscribers = Arc::new(Mutex::new(SubscriberMap::new()));
         let cur_tagmask = Arc::new(RwLock::new(0));
@@ -130,18 +130,38 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         params: publisher::SubscribeParams<::capnp::any_pointer::Owned>,
         mut results: publisher::SubscribeResults<::capnp::any_pointer::Owned>,
     ) -> Promise<(), ::capnp::Error> {
+        use service_sub::patmasks as p;
 
         // Gather subscription parameters
         let svc_rdr = pry!(pry!(params.get()).get_services());
         let tagmask = svc_rdr.reborrow().get_tagmask();
-        let patmasks = match svc_rdr.reborrow().has_patmasks() {
-            false => Vec::new(),
-            true => pry!(svc_rdr.reborrow().get_patmasks()).iter().collect(),
+        let prdr = svc_rdr.reborrow().get_patmasks();
+        let patmasks: Vec<(u16, Option<u32>)> = match pry!(prdr.which()) {
+            p::Bare(b) => {
+                let rdr = pry!(b);
+                let p = rdr.iter().map(|p| (p, None)).collect();
+                p
+            },
+            p::Windowed(w) => {
+                let rdr = pry!(w);
+                let p = rdr.iter().map(|lrdr| {
+                    let pm = lrdr.reborrow().get_patmask();
+                    let wd = lrdr.reborrow().get_window();
+                    match wd {
+                        0 => (pm, None),
+                        w => (pm, Some(w)),
+                    }
+                }).collect();
+                p
+            },
         };
 
         print!("subscribe: [");
-        for pat in patmasks.clone() {
-            print!("{:#x}, ", pat);
+        for (pat, win) in patmasks.clone() {
+            match win {
+                Some(w) => print!("{:#x} ({}), ", pat, w),
+                None => print!("{:#x}, ", pat),
+            }
         }
         println!("]");
 
@@ -257,8 +277,12 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::task::LocalSet::new()
         .run_until(async move {
             let listener = tokio::net::TcpListener::bind(&addr).await?;
-            let (publisher_impl, subscribers, cur_tagmask, cur_patmasks) =
-                PublisherImpl::new(sender_event.clone());
+            let (
+                publisher_impl,
+                subscribers,
+                cur_tagmask,
+                cur_patmasks,
+            ) = PublisherImpl::new(sender_event.clone());
             let publisher: publisher::Client<_> = capnp_rpc::new_client(publisher_impl);
 
             // spawn controller thread
@@ -278,7 +302,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             processor::main(receiver_raw,
                 sender_proc,
                 cur_tagmask.clone(),
-                cur_patmasks.clone()
+                cur_patmasks.clone(),
             )?;
 
             let handle_incoming = async move {
@@ -332,11 +356,12 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
 
                             let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);
-                            for (i, (&pat, &ct)) in patcounts.iter().enumerate() {
+                            for (i, ((pat, win), &ct)) in patcounts.iter().enumerate() {
                                 let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
-                                pat_bdr.reborrow().set_patmask(pat);
+                                pat_bdr.reborrow().set_patmask(*pat);
                                 pat_bdr.reborrow().set_duration(dur);
                                 pat_bdr.reborrow().set_count(ct);
+                                pat_bdr.reborrow().set_window(win.unwrap_or_default());
                             }
 
                             let mut request = subscriber.client.push_message_request();

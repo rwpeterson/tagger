@@ -19,6 +19,6 @@ pub struct Cli {
     #[argh(option, default = "String::from(\"127.0.0.1:6969\")")]
     pub addr: String,
     /// config file path
-    #[argh(option, default = "String::from(\"testconfig.toml\")")]
+    #[argh(option)]
     pub config: String,
 }

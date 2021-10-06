@@ -1,4 +1,3 @@
-pub mod client;
 pub mod controller;
 pub mod copier;
 pub mod data;

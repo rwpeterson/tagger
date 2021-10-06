@@ -213,14 +213,17 @@ impl Client {
                 let mut request = publisher.subscribe_request();
                 request.get().reborrow().set_subscriber(sub);
                 let sbdr = request.get().init_services();
-                let mut pbdr = sbdr.init_patmasks(pats.len() as u32);
+                let mut pbdr = sbdr.init_patmasks().init_bare(pats.len() as u32);
                 for (i, &pat) in pats.iter().enumerate() {
                     pbdr.set(i as u32, pat);
                 }
 
                 // Need to make sure not to drop the returned subscription object.
-                futures::future::try_join3(rpc_system, request.send().promise, client_future)
-                    .await?;
+                futures::future::try_join3(
+                    rpc_system,
+                    request.send().promise,
+                    client_future
+                ).await?;
                 Ok(())
             })
             .await

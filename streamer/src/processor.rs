@@ -9,9 +9,9 @@ use crate::data::count_patterns;
 
 pub fn main(
     receiver: flume::Receiver<(Vec<Tag>, u64)>,
-    sender: flume::Sender<(u64, Vec<Tag>, HashMap<u16,u64>)>,
+    sender: flume::Sender<(u64, Vec<Tag>, HashMap<(u16, Option<u32>),u64>)>,
     cur_tagmask: Arc<RwLock<u16>>,
-    cur_patmasks: Arc<RwLock<HashSet<u16>>>,
+    cur_patmasks: Arc<RwLock<HashSet<(u16, Option<u32>)>>>,
 ) -> Result<()> {
     std::thread::spawn(move || loop {
         match receiver.recv() {

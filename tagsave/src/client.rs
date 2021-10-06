@@ -20,10 +20,14 @@ struct Client {
     receiver: mpsc::UnboundedReceiver<ClientMessage>,
     buffer: Arc<Mutex<Vec<StreamData>>>,
     data_receiver: mpsc::UnboundedReceiver<StreamData>,
+    settings_receiver: mpsc::UnboundedReceiver<ClientMessage>,
 }
 pub enum ClientMessage {
     GetData {
         respond_to: flume::Sender<Option<Vec<StreamData>>>,
+    },
+    GetSettings {
+        respond_to: flume::Sender<InputState>,
     },
 }
 
@@ -31,11 +35,13 @@ impl Client {
     fn new(
         receiver: mpsc::UnboundedReceiver<ClientMessage>,
         data_receiver: mpsc::UnboundedReceiver<StreamData>,
+        settings_receiver: mpsc::UnboundedReceiver<ClientMessage>,
     ) -> Self {
         Client {
             receiver,
             buffer: Arc::new(Mutex::new(Vec::new())),
             data_receiver,
+            settings_receiver,
         }
     }
 }
@@ -43,13 +49,15 @@ impl Client {
 #[derive(Clone)]
 pub struct ClientHandle {
     pub sender: mpsc::UnboundedSender<ClientMessage>,
+    pub settings_sender: mpsc::UnboundedSender<ClientMessage>,
 }
 
 impl ClientHandle {
     pub fn new(args: CliArgs) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let (data_sender, data_receiver) = mpsc::unbounded_channel();
-        let mut rpc_client = Client::new(receiver, data_receiver);
+        let (settings_sender, settings_receiver) = mpsc::unbounded_channel();
+        let mut rpc_client = Client::new(receiver, data_receiver, settings_receiver);
         let rt = Builder::new_current_thread().enable_all().build().unwrap();
 
         std::thread::spawn(move || {
@@ -58,7 +66,7 @@ impl ClientHandle {
             });
         });
 
-        ClientHandle { sender }
+        ClientHandle { sender, settings_sender }
     }
 }
 
@@ -77,6 +85,13 @@ pub struct LogicPattern {
     pub patmask: u16,
     pub duration: u64,
     pub count: u64,
+    pub window: Option<u32>,
+}
+
+pub struct InputState {
+    pub inversion_mask: u16,
+    pub delays: Vec<u32>,
+    pub thresholds: Vec<f64>,
 }
 
 struct SubscriberImpl {
@@ -118,6 +133,10 @@ impl subscriber::Server<service_pub::Owned> for SubscriberImpl {
                     patmask: pat_rdr.get_patmask(),
                     duration: pat_rdr.get_duration(),
                     count: pat_rdr.get_count(),
+                    window: match pat_rdr.get_window() {
+                        0 => None,
+                        w => Some(w),
+                    },
                 });
             }
         }
@@ -147,24 +166,27 @@ impl Client {
                     loop {
                         tokio::select! {
                             Some(msg) = self.receiver.recv() => {
-                                match msg {
-                                    ClientMessage::GetData { respond_to } => {
-                                        let b = self.buffer.clone();
-                                        let mut buffer = b.lock();
-                                        let _ = match (*buffer).is_empty() {
-                                            true => respond_to.send(None),
-                                            false => {
-                                                let data = (*buffer).drain(..).collect();
-                                                respond_to.send(Some(data))
-                                            },
-                                        };
-                                    }
+                                if let ClientMessage::GetData { respond_to } = msg {
+                                    let b = self.buffer.clone();
+                                    let mut buffer = b.lock();
+                                    let _ = match (*buffer).is_empty() {
+                                        true => respond_to.send(None),
+                                        false => {
+                                            let data = (*buffer).drain(..).collect();
+                                            respond_to.send(Some(data))
+                                        },
+                                    };
                                 }
                             },
                             Some(msg) = self.data_receiver.recv() => {
                                 let b = self.buffer.clone();
                                 let mut buffer = b.lock();
                                 (*buffer).push(msg);
+                            },
+                            Some(msg) = self.settings_receiver.recv() => {
+                                if let ClientMessage::GetSettings{ respond_to } = msg {
+                                    respond_to.send()
+                                }
                             },
                             else => break,
                         }
@@ -189,7 +211,7 @@ impl Client {
                     rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
                 let sub = capnp_rpc::new_client(SubscriberImpl { sender: data_sender });
 
-                // Process the config for subscription
+                // Process the config file
                 let path = Path::new(&cli.config);
                 let mut f = File::open(path).await?;
                 let mut s = String::new();
@@ -199,32 +221,79 @@ impl Client {
                 let mut pats = Vec::new();
                 for s in config.singles {
                     if let cfg::Single::Channel(ch) = s {
-                        pats.push(chans_to_mask(&[ch]));
+                        pats.push((chans_to_mask(&[ch]), None));
                     }
                 }
                 for c in config.coincidences {
-                    if let cfg::Coincidence::Channels((ch_a, ch_b)) = c {
-                        pats.push(chans_to_mask(&[ch_a, ch_b]));
+                    match c {
+                        cfg::Coincidence::Channels((ch_a, ch_b)) => {
+                            pats.push((chans_to_mask(&[ch_a, ch_b]), None));
+                        }
+                        cfg::Coincidence::ChannelsWin((ch_a, ch_b, win)) => {
+                            let w = if win == 0 { None } else { Some(win) };
+                            pats.push((chans_to_mask(&[ch_a, ch_b]), w));
+                        }
+                        cfg::Coincidence::ChannelsCounts(_) => {},
                     }
                 }
-                
-                // Assemble the request
-                let mut request = publisher.subscribe_request();
-                request.get().reborrow().set_subscriber(sub);
-                let sbdr = request.get().init_services();
-                let mut pbdr = sbdr.init_patmasks(pats.len() as u32);
-                for (i, &pat) in pats.iter().enumerate() {
-                    pbdr.set(i as u32, pat);
+
+                // Assemble the channel settings first
+                let mut set_reqs = Vec::new();
+                for cs in config.channel_settings {
+                    let ch = cs.channel;
+                    if let Some(del) = cs.delay {
+                        let mut req = publisher.set_input_request();
+                        let mut rbdr = req.get();
+                        let mut dbdr = rbdr.reborrow().init_s().init_delay();
+                        dbdr.reborrow().set_ch(ch);
+                        dbdr.reborrow().set_del(del);
+                        set_reqs.push(req.send().promise);
+                    }
+                    if let Some(inv) = cs.invert {
+                        let mut req = publisher.set_input_request();
+                        let mut rbdr = req.get();
+                        let mut dbdr = rbdr.reborrow().init_s().init_inversion();
+                        dbdr.reborrow().set_ch(ch);
+                        dbdr.reborrow().set_inv(inv);
+                        set_reqs.push(req.send().promise);
+                    }
+                    if let Some(th) = cs.threshold {
+                        let mut req = publisher.set_input_request();
+                        let mut rbdr = req.get();
+                        let mut dbdr = rbdr.reborrow().init_s().init_threshold();
+                        dbdr.reborrow().set_ch(ch);
+                        dbdr.reborrow().set_th(th);
+                        set_reqs.push(req.send().promise);
+                    }
                 }
+
+                // Run the channel settings futures to completion first, before requesting data
+                futures::future::try_join_all(set_reqs).await?;
+
+                // Assemble the service sub request
+                let mut data_req = publisher.subscribe_request();
+                data_req.get().reborrow().set_subscriber(sub);
+                let sbdr = data_req.get().init_services();
+                let mut pbdr = sbdr.init_patmasks().init_windowed(pats.len() as u32);
+                for (i, (pat, win)) in pats.iter().enumerate() {
+                    let mut lpbdr = pbdr.reborrow().get(i as u32);
+                    lpbdr.reborrow().set_patmask(*pat);
+                    lpbdr.reborrow().set_window(win.unwrap_or_default());
+                }
+
+                // Run the data request to completion
+                data_req.send().promise.await?;
+
+                // Assemble the channel settings get request
+                let get_req = publisher.get_inputs_request();
 
                 // Need to make sure not to drop the returned subscription object.
                 futures::future::try_join3(
                     rpc_system,
-                    request.send().promise,
-                    client_future
+                    get_req.send().promise,
+                    client_future,
                 ).await?;
                 Ok(())
-            })
-            .await
+            }).await
     }
 }
