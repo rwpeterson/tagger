@@ -33,7 +33,8 @@
 //!
 //! This library does not distribute `CTimeTagLib.lib` (Windows) or
 //! `libtimetag64.so` (Linux). Please source them from the vendor and
-//! place them in `timetag/lib/`.
+//! place them in `lib/` in the tagger workspace root (one directory up
+//! from `timetag`).
 //!
 //! This library is intended to be used with a separate user interface
 //! or server implementation: `timetag` only provides the Rust FFI to
@@ -63,7 +64,7 @@ use std::collections::HashSet;
 ///
 /// Because the FFI requires that the implementation-dependent types be
 /// cast to fixed-width types anyway, almost all integers are cast to
-/// unsigned to follow their semantic meaning. 64 and 32 bit counters,
+/// unsigned to follow their semantic meaning. 64 and 32 bit counters
 /// keep their bit depth, but channels are consistently reduced to a `u8`,
 /// pattern masks are reduced to `u16` (and sometimes shifted by one to
 /// regularize bit 0 == channel 1), and certain variables with limited-
@@ -100,7 +101,7 @@ pub mod ffi {
           If only one type is defined in this extern block, the
           signatures with &self are automatically associated as methods
           for that type. For more than one, use multiple extern blocks,
-          or specify the type explicitly, e.g. self: &TimeTagger
+          or specify the type explicitly, e.g. `self: &TimeTagger`
         */
 
         // Wrappers for vendor class methods
