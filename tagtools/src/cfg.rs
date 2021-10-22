@@ -6,35 +6,43 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 /// Experiment run specification for both declaring and recording runs in text files.
-/// For concreteness, we use [TOML](https://toml.io) as the text file format.
+/// We use [TOML](https://toml.io) as the text file format.
 ///
 /// ## Declaring a run
 ///
 /// A `.toml` file specifies the data to be recorded. All fields in `Run` are optional:
-/// specify only what makes sense. The `name` field is free; set it to a useful value
-/// to help keep track of what was done. Beyond that, a minimal specification sets a
-/// limit (in user-readable time duration or a number of counts in some pattern),
-/// flags whether tags or counts should be saved, and sets the appropriate patterns.
+/// specify only what makes sense. The `description` field is free, and can contain
+/// freeform text. Beyond that, a minimal run file
+/// sets a limit (in user-readable time duration or a number of counts in some pattern),
+/// flags if tags should be saved, and sets the appropriate patterns.
+/// Practically, you need to specify channel settings (at least a threshold). Channel
+/// settings are **stateful**, so once set they remain in effect until the tagger resets.
+/// For this reason implementations should not set channel settings willy-nilly,
+/// especially with default values, so that the user only needs to specify them once
+/// instead of in every run file. However, implementations should always collect
+/// channel settings, to capture a complete record of the experiment.
 ///
 /// ## Recording a run
 ///
 /// ### Logic mode
 ///
-/// A run is recorded in the same format as the declation, either by switching enum
-/// variants or filling in fields that were empty in the specification. For example,
-/// the `singles` field is mapped from `Single::Channel(chan)` to
-/// `Single::ChannelCounts(chan, counts)`. The precise duration (in 5 ns
-/// increments) is recorded as an integer, leaving rates to be calculated in post.
-/// A timestamp of the run start is included for reference, along with the name
-/// string provided in the declaration. All channel settings are also recorded.
+/// A run is recorded in a new file with the same format as the declation, either
+/// by switching enum variants or filling in fields that were empty in the
+/// specification. For example, the `singles` field is mapped from
+/// `Single::Channel(chan)` to `Single::ChannelCounts(chan, counts)`. The precise
+/// duration (in 5 ns increments) is recorded as an integer, leaving rates to be
+/// calculated in post. A timestamp of the run start is included for reference,
+/// along with the name string provided in the declaration. All channel settings
+/// are also recorded. `myrunfile.toml -> myrunfile-<timestamp>.toml`
 ///
 /// ### Tag mode
 ///
 /// Currently, this only looks at `save_tags`: if true, it will save all tags to a file
-/// specified in SaveTags::TagFile, whose filename is implementation-dependent.
+/// named `myrunfile-<timestamp>.tags.zst`, which is additionally specified in
+/// `SaveTags::TagFile` inside `myrunfile-<timestamp>.toml`.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Run {
-    pub name:               String,
+    pub description:        String,
     pub timestamp:          Option<DateTime<Local>>,
     pub limit:              Option<RunLimit>,
     pub save_counts:        Option<bool>,
@@ -52,6 +60,7 @@ pub struct Run {
 /// Duration is parsed as in [humantime](https://docs.rs/humantime/), e.g.
 /// `15days 2min 2s` or `2years 2min 12us`.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all(serialize = "snake_case", deserialize = "PascalCase"))]
 pub enum RunLimit {
     #[serde(with = "humantime_serde")]
     Duration(Duration),
@@ -60,6 +69,7 @@ pub enum RunLimit {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all(serialize = "snake_case", deserialize = "PascalCase"))]
 pub enum SaveTags {
     Save(bool),
     TagFile(PathBuf),
@@ -67,6 +77,7 @@ pub enum SaveTags {
 
 /// Specify a channel, or specify a channel with some number of counts
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all(serialize = "snake_case", deserialize = "PascalCase"))]
 pub enum Single {
     Channel(u8),
     ChannelCounts((u8, u64)),
@@ -74,6 +85,7 @@ pub enum Single {
 
 /// Specify two channels, two and a window, or two and a window and counts
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all(serialize = "snake_case", deserialize = "PascalCase"))]
 pub enum Coincidence {
     Channels((u8, u8)),
     ChannelsWin((u8, u8, u32)),
@@ -98,7 +110,7 @@ fn emptyvec<T>() -> Vec<T> {
 impl Default for Run {
     fn default() -> Self {
         Run {
-            name:               String::new(),
+            description:               String::new(),
             timestamp:          None,
             limit:              None,
             save_counts:        None,

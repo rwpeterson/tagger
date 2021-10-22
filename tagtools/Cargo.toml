@@ -22,5 +22,6 @@ csv = "1.1.6"
 humantime-serde = "1.0.1"
 itertools = "0.10.0"
 serde = { version = "1.0.126", features = ["derive"] }
+toml = "0.5.8"
 tagger_capnp = { path = "../tagger_capnp" }
 zstd = "0.9.0"

@@ -20,7 +20,6 @@ struct Client {
     receiver: mpsc::UnboundedReceiver<ClientMessage>,
     buffer: Arc<Mutex<Vec<StreamData>>>,
     data_receiver: mpsc::UnboundedReceiver<StreamData>,
-    settings_receiver: mpsc::UnboundedReceiver<ClientMessage>,
 }
 pub enum ClientMessage {
     GetData {
@@ -35,38 +34,35 @@ impl Client {
     fn new(
         receiver: mpsc::UnboundedReceiver<ClientMessage>,
         data_receiver: mpsc::UnboundedReceiver<StreamData>,
-        settings_receiver: mpsc::UnboundedReceiver<ClientMessage>,
     ) -> Self {
         Client {
             receiver,
             buffer: Arc::new(Mutex::new(Vec::new())),
             data_receiver,
-            settings_receiver,
         }
     }
 }
 
-#[derive(Clone)]
 pub struct ClientHandle {
     pub sender: mpsc::UnboundedSender<ClientMessage>,
-    pub settings_sender: mpsc::UnboundedSender<ClientMessage>,
+    pub join_handle: std::thread::JoinHandle<(u16, Vec<u32>, Vec<f64>)>,
 }
 
 impl ClientHandle {
     pub fn new(args: CliArgs) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let (data_sender, data_receiver) = mpsc::unbounded_channel();
-        let (settings_sender, settings_receiver) = mpsc::unbounded_channel();
-        let mut rpc_client = Client::new(receiver, data_receiver, settings_receiver);
+        let mut rpc_client = Client::new(receiver, data_receiver);
         let rt = Builder::new_current_thread().enable_all().build().unwrap();
 
-        std::thread::spawn(move || {
-            rt.block_on(async move {
-                rpc_client.main(args, data_sender).await.unwrap();
+        let join_handle = std::thread::spawn(move || {
+            // runtime is started here
+            return rt.block_on(async move {
+                rpc_client.main(args, data_sender).await.unwrap()
             });
         });
 
-        ClientHandle { sender, settings_sender }
+        ClientHandle { sender, join_handle }
     }
 }
 
@@ -150,7 +146,7 @@ impl Client {
         &mut self,
         cli: CliArgs,
         data_sender: mpsc::UnboundedSender<StreamData>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(u16, Vec<u32>, Vec<f64>), Box<dyn std::error::Error>> {
         use std::net::ToSocketAddrs;
 
         let addr = cli.addr
@@ -182,11 +178,6 @@ impl Client {
                                 let b = self.buffer.clone();
                                 let mut buffer = b.lock();
                                 (*buffer).push(msg);
-                            },
-                            Some(msg) = self.settings_receiver.recv() => {
-                                if let ClientMessage::GetSettings{ respond_to } = msg {
-                                    respond_to.send()
-                                }
                             },
                             else => break,
                         }
@@ -281,19 +272,22 @@ impl Client {
                     lpbdr.reborrow().set_window(win.unwrap_or_default());
                 }
 
-                // Run the data request to completion
-                data_req.send().promise.await?;
-
                 // Assemble the channel settings get request
                 let get_req = publisher.get_inputs_request();
 
                 // Need to make sure not to drop the returned subscription object.
-                futures::future::try_join3(
+                let tuple = futures::future::try_join4(
                     rpc_system,
+                    data_req.send().promise,
                     get_req.send().promise,
                     client_future,
-                ).await?;
-                Ok(())
+                );
+                let (_, _, get_reply, _) = tuple.await?;
+                let rdr = get_reply.get().unwrap().get_s().unwrap();
+                let invm = rdr.reborrow().get_inversionmask();
+                let dels = rdr.reborrow().get_delays().unwrap().iter().collect();
+                let thrs = rdr.reborrow().get_thresholds().unwrap().iter().collect();
+                Ok((invm, dels, thrs))
             }).await
     }
 }
