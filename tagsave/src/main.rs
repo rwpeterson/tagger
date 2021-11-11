@@ -10,7 +10,7 @@ use std::io::Read;
 
 use tagtools::{CHAN16, Tag, bit, cfg};
 
-use tagsave::client::{ClientHandle, ClientMessage, InputState};
+use tagsave::client::{ClientHandle, ClientMessage};
 use tagsave::save::{SaveHandle, SaveMessage, SaveTags};
 
 #[tokio::main(flavor = "current_thread")]
@@ -55,19 +55,22 @@ async fn main() -> Result<()> {
         //duration = 0;
         (*tags).clear();
         //(*pats).clear();
-        if let Some(data) = newdata {
-            for mut chunk in data {
-                duration += chunk.tagpat.duration;
-                (*tags).append(&mut chunk.tagpat.tags);
-                for lpat in chunk.pats {
-                    if let None = (*pats).get(&(lpat.patmask, lpat.window)) {
-                        let _ = (*pats).insert((lpat.patmask, lpat.window), 0);
-                    }
-                    if let Some(v) = (*pats).get_mut(&(lpat.patmask, lpat.window)) {
-                        *v += lpat.count;
+        match newdata {
+            Some(data) => {
+                for mut chunk in data {
+                    duration += chunk.tagpat.duration;
+                    (*tags).append(&mut chunk.tagpat.tags);
+                    for lpat in chunk.pats {
+                        if let None = (*pats).get(&(lpat.patmask, lpat.window)) {
+                            let _ = (*pats).insert((lpat.patmask, lpat.window), 0);
+                        }
+                        if let Some(v) = (*pats).get_mut(&(lpat.patmask, lpat.window)) {
+                            *v += lpat.count;
+                        }
                     }
                 }
             }
+            None => break,
         }
 
         // Save tags to disk
@@ -113,10 +116,6 @@ async fn main() -> Result<()> {
             None => {},
         }
 
-        if let None = newdata {
-            break
-        }
-
         // Sleep for the rest of tick rate
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
@@ -125,7 +124,7 @@ async fn main() -> Result<()> {
         last_tick = Instant::now();
     }
 
-    let (im, dl, th) = client.join_handle.join()?;
+    let raw_settings = client.join_handle.join().unwrap()?;
 
     // Now record the run record to disk
     let mut record = cfg::Run{
@@ -160,9 +159,9 @@ async fn main() -> Result<()> {
         record.channel_settings.push(
             cfg::ChannelSettings {
                 channel,
-                invert: Some(bit::mask_to_chans(im).contains(&channel)),
-                delay: Some(dl[channel as usize - 1]),
-                threshold: Some(th[channel as usize - 1]),
+                invert: Some(bit::mask_to_chans(raw_settings.invm).contains(&channel)),
+                delay: Some(raw_settings.dels[channel as usize - 1]),
+                threshold: Some(raw_settings.thrs[channel as usize - 1]),
             }
         );
     }

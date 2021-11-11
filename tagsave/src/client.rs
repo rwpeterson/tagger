@@ -2,6 +2,7 @@
 // https://github.com/capnproto/capnproto-rust/blob/master/capnp-rpc/examples/pubsub/client.rs
 // Copyright (c) 2013-2016 Sandstorm Development Group, Inc. and contributors
 
+use anyhow::Result;
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::AsyncReadExt;
@@ -9,12 +10,18 @@ use parking_lot::Mutex;
 use std::path::Path;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
-use tagtools::{bit::chans_to_mask, Tag, cfg};
+use tagtools::{bit::chans_to_mask, cfg, Tag};
 use tokio::fs::File;
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 
 use crate::CliArgs;
+
+pub struct RawChannelSettings {
+    pub invm: u16,
+    pub dels: Vec<u32>,
+    pub thrs: Vec<f64>,
+}
 
 struct Client {
     receiver: mpsc::UnboundedReceiver<ClientMessage>,
@@ -45,7 +52,7 @@ impl Client {
 
 pub struct ClientHandle {
     pub sender: mpsc::UnboundedSender<ClientMessage>,
-    pub join_handle: std::thread::JoinHandle<(u16, Vec<u32>, Vec<f64>)>,
+    pub join_handle: std::thread::JoinHandle<Result<Box<RawChannelSettings>>>,
 }
 
 impl ClientHandle {
@@ -57,12 +64,13 @@ impl ClientHandle {
 
         let join_handle = std::thread::spawn(move || {
             // runtime is started here
-            return rt.block_on(async move {
-                rpc_client.main(args, data_sender).await.unwrap()
-            });
+            return rt.block_on(async move { rpc_client.main(args, data_sender).await });
         });
 
-        ClientHandle { sender, join_handle }
+        ClientHandle {
+            sender,
+            join_handle,
+        }
     }
 }
 
@@ -146,10 +154,11 @@ impl Client {
         &mut self,
         cli: CliArgs,
         data_sender: mpsc::UnboundedSender<StreamData>,
-    ) -> Result<(u16, Vec<u32>, Vec<f64>), Box<dyn std::error::Error>> {
+    ) -> Result<Box<RawChannelSettings>> {
         use std::net::ToSocketAddrs;
 
-        let addr = cli.addr
+        let addr = cli
+            .addr
             .to_socket_addrs()
             .unwrap()
             .next()
@@ -200,7 +209,9 @@ impl Client {
 
                 let publisher: publisher::Client<service_pub::Owned> =
                     rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
-                let sub = capnp_rpc::new_client(SubscriberImpl { sender: data_sender });
+                let sub = capnp_rpc::new_client(SubscriberImpl {
+                    sender: data_sender,
+                });
 
                 // Process the config file
                 let path = Path::new(&cli.config);
@@ -208,6 +219,8 @@ impl Client {
                 let mut s = String::new();
                 tokio::io::AsyncReadExt::read_to_string(&mut f, &mut s).await?;
                 let config: cfg::Run = toml::de::from_str(&s)?;
+
+                println!("runfile processed");
 
                 let mut pats = Vec::new();
                 for s in config.singles {
@@ -224,7 +237,7 @@ impl Client {
                             let w = if win == 0 { None } else { Some(win) };
                             pats.push((chans_to_mask(&[ch_a, ch_b]), w));
                         }
-                        cfg::Coincidence::ChannelsCounts(_) => {},
+                        cfg::Coincidence::ChannelsCounts(_) => {}
                     }
                 }
 
@@ -258,8 +271,10 @@ impl Client {
                     }
                 }
 
+                println!("sending channel settings");
                 // Run the channel settings futures to completion first, before requesting data
                 futures::future::try_join_all(set_reqs).await?;
+                println!("channel settings applied");
 
                 // Assemble the service sub request
                 let mut data_req = publisher.subscribe_request();
@@ -285,9 +300,12 @@ impl Client {
                 let (_, _, get_reply, _) = tuple.await?;
                 let rdr = get_reply.get().unwrap().get_s().unwrap();
                 let invm = rdr.reborrow().get_inversionmask();
-                let dels = rdr.reborrow().get_delays().unwrap().iter().collect();
-                let thrs = rdr.reborrow().get_thresholds().unwrap().iter().collect();
-                Ok((invm, dels, thrs))
-            }).await
+                let dels: Vec<u32> = rdr.reborrow().get_delays().unwrap().iter().collect();
+                let thrs: Vec<f64> = rdr.reborrow().get_thresholds().unwrap().iter().collect();
+                let raw_settings = RawChannelSettings { invm, dels, thrs };
+                println!("data received");
+                Ok(Box::new(raw_settings))
+            }
+        ).await
     }
 }
