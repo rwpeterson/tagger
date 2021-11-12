@@ -12,16 +12,17 @@ harness = false
 
 [dev-dependencies]
 bencher = "0.1.5"
+humantime = "2.1"
 
 [dependencies]
-anyhow = "1.0.13"
-bit-iter = "0.1.5"
-capnp = "0.14.2"
-chrono = { version = "0.4.19", features = ["serde"] }
-csv = "1.1.6"
-humantime-serde = "1.0.1"
-itertools = "0.10.0"
-serde = { version = "1.0.126", features = ["derive"] }
-toml = "0.5.8"
+anyhow = "1.0"
+bit-iter = "1.0"
+capnp = "0.14"
+chrono = { version = "0.4", features = ["serde"] }
+csv = "1.1"
+humantime-serde = "1.0"
+itertools = "0.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 tagger_capnp = { path = "../tagger_capnp" }
-zstd = "0.9.0"
+zstd = "0.9"

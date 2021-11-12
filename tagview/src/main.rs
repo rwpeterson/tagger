@@ -5,15 +5,21 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::io::stdout;
+use std::fs::File;
+use std::io::{BufReader, stdout};
+use std::net::ToSocketAddrs;
+use std::path::PathBuf;
 use std::time::Duration;
-use tagview::{app::{App, Event}, ui};
+use tagtools::cfg;
+use tagview::{
+    Cli,
+    app::{App, Event},
+    client::ClientHandle,
+    timer::TimerHandle,
+    save::SaveHandle,
+    ui,
+};
 use tui::{backend::CrosstermBackend, Terminal};
-
-use tagview::client::ClientHandle;
-use tagview::timer::TimerHandle;
-use tagview::save::SaveHandle;
-use tagview::Cli;
 
 /// Timetag visualization client
 /// 
@@ -47,8 +53,21 @@ use tagview::Cli;
 fn main() -> Result<()> {
     let cli: Cli = argh::from_env();
 
+    let addr = cli.addr
+        .to_socket_addrs()
+        .unwrap()
+        .next()
+        .expect("could not parse address");
+
+    // Process the config for subscription
+    let path = PathBuf::from(&cli.config);
+    let f = File::open(path)?;
+    let rdr = BufReader::new(f);
+    let config: cfg::Run = serde_json::from_reader(rdr)?;
+        
+
     // Client thread - runs async runtime for Cap'n Proto RPC
-    let client_handle = ClientHandle::new(cli.clone());
+    let client_handle = ClientHandle::new(addr, config.clone());
 
     // Event thread - forwards input events and sends ticks
     let tick_rate = Duration::from_millis(cli.tick_rate);

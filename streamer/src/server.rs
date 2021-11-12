@@ -201,8 +201,15 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         match pry!(pry!(pry!(params.get()).get_s()).which()) {
             w::Inversion(r) => {
                 let rdr = pry!(r);
+                let ch = rdr.get_ch();
+                let inv = rdr.get_inv();
+                println!(
+                    "set channel {}: inversion mask {}",
+                    ch,
+                    inv,
+                );
                 let mut invmask = self.invmask.write();
-                bit::changebit16(&mut *invmask, rdr.get_ch() - 1, rdr.get_inv());
+                bit::changebit16(&mut *invmask, ch, inv);
                 self.tx_controller.send(
                     Event::Set(InputSetting::InversionMask(*invmask))
                 ).unwrap();
@@ -212,6 +219,11 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                 let mut delays = self.delays.write();
                 let ch = rdr.get_ch();
                 let del = rdr.get_del();
+                println!(
+                    "set channel {}: delay {}",
+                    ch,
+                    del,
+                );
                 delays[(ch - 1) as usize] = del;
                 self.tx_controller.send(
                     Event::Set(InputSetting::Delay((ch, del)))
@@ -222,6 +234,11 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                 let mut thresholds = self.thresholds.write();
                 let ch = rdr.get_ch();
                 let th = rdr.get_th();
+                println!(
+                    "set channel {} threshold: {} V",
+                    ch,
+                    th,
+                );
                 thresholds[(ch - 1) as usize] = th;
                 self.tx_controller.send(
                     Event::Set(InputSetting::Threshold((ch, th)))
@@ -239,6 +256,8 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         let invmask = self.invmask.read();
         let delays = self.delays.read();
         let thresholds = self.thresholds.read();
+
+        println!("Request to get input settings received");
 
         let mut bdr = results.get().init_s();
         bdr.set_inversionmask(*invmask);

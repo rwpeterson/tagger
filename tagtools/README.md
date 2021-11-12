@@ -2,7 +2,7 @@
 
 A set of time tag analysis tools in Rust
 
-## End-user applications for working with the binary tags format
+## End-user applications for working with the [binary tags format](doc/tags_format.md)
 
 These work on Unix, not Windows (since Windows chokes on non-UTF8 bytes in stdin/stdout)
 
@@ -10,9 +10,9 @@ These work on Unix, not Windows (since Windows chokes on non-UTF8 bytes in stdin
 
 Convert compressed binary format to tab-separated values
 
-Example:
-
-    tcat mydata.tags.zst > mydata.txt
+```sh
+tcat mydata.tags.zst > mydata.txt
+```
 
 reads `mydata.tags.zst`, decompresses it, parses the binary format, and writes it to
 standard output as tab-separated values (the `> mydata.tags.zst` directs output to this
@@ -22,13 +22,38 @@ file instead of the terminal).
 
 Convert tab-separated data to the compressed binary format.
 
-Example:
-
-    txt2tags mydata.txt > mydata.tags.zst
+```sh
+txt2tags mydata.txt > mydata.tags.zst
+```
 
 reads `mydata.txt` (tab-separated values of channel and timestamp), and writes it to
 standard output (the `> mydata.tags.zst` directs output to this file instead of the
 terminal).
+
+### "I want to read your binary tags format, but I refuse to use your code"
+
+You can use the [`capnp`][cpt] program to decode the binary to a human-readable format:
+
+```sh
+zstd -d mydata.tags.zst # decompresses to mydata.tags
+capnp decode tags.capnp Tags < mydata.tags > mydata.txt
+```
+
+## End-user applications for working with the experiment runfile format
+
+This format, defined in `tagtools::cfg::Run`, is a JSON file that can either specify
+the data to be taken in an experiment, or record the data that was taken. See the
+[example runfile](contrib/runfile_example.json).
+
+### `checkrun`
+
+You can verify that your runfile parses correctly into a Run object
+
+```sh
+checkrun myrunfile.json
+```
+
+Exiting with no output means that the runfile parsed correctly.
 
 ## Library
 
@@ -58,3 +83,5 @@ by running several in parallel:
 cargo test -p tagtools                               # normal
 cargo test -p tagtools -- --ignored --test-threads=1 # runs "ignored" tests too
 ```
+
+[cpt]: https://capnproto.org/capnp-tool.html#decoding-messages

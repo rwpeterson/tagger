@@ -6,16 +6,11 @@ use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::AsyncReadExt;
 use parking_lot::Mutex;
-use std::path::Path;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
 use tagtools::{bit::chans_to_mask, Tag, cfg};
-use tokio::fs::File;
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
-
-
-use crate::Cli;
 
 struct Client {
     receiver: mpsc::UnboundedReceiver<ClientMessage>,
@@ -47,7 +42,7 @@ pub struct ClientHandle {
 }
 
 impl ClientHandle {
-    pub fn new(cli: Cli) -> Self {
+    pub fn new(addr: std::net::SocketAddr, config: cfg::Run) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let (data_sender, data_receiver) = mpsc::unbounded_channel();
         let mut rpc_client = Client::new(receiver, data_receiver);
@@ -55,7 +50,7 @@ impl ClientHandle {
 
         std::thread::spawn(move || {
             rt.block_on(async move {
-                rpc_client.main(cli, data_sender).await.unwrap();
+                rpc_client.main(addr, config, data_sender).await.unwrap();
             });
         });
 
@@ -130,17 +125,10 @@ impl subscriber::Server<service_pub::Owned> for SubscriberImpl {
 impl Client {
     async fn main(
         &mut self,
-        cli: Cli,
+        addr: std::net::SocketAddr,
+        config: cfg::Run,
         data_sender: mpsc::UnboundedSender<StreamData>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        use std::net::ToSocketAddrs;
-
-        let addr = cli.addr
-            .to_socket_addrs()
-            .unwrap()
-            .next()
-            .expect("could not parse address");
-
         tokio::task::LocalSet::new()
             .run_until(async move {
                 // Receives data from RPC calls and passes it to the app
@@ -189,13 +177,6 @@ impl Client {
                 let publisher: publisher::Client<service_pub::Owned> =
                     rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
                 let sub = capnp_rpc::new_client(SubscriberImpl { sender: data_sender });
-
-                // Process the config for subscription
-                let path = Path::new(&cli.config);
-                let mut f = File::open(path).await?;
-                let mut s = String::new();
-                tokio::io::AsyncReadExt::read_to_string(&mut f, &mut s).await?;
-                let config: cfg::Run = toml::de::from_str(&s)?;
 
                 let mut pats = Vec::new();
                 for s in config.singles {

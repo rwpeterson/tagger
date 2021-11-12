@@ -7,15 +7,11 @@ use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::AsyncReadExt;
 use parking_lot::Mutex;
-use std::path::Path;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
 use tagtools::{bit::chans_to_mask, cfg, Tag};
-use tokio::fs::File;
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
-
-use crate::CliArgs;
 
 pub struct RawChannelSettings {
     pub invm: u16,
@@ -56,7 +52,7 @@ pub struct ClientHandle {
 }
 
 impl ClientHandle {
-    pub fn new(args: CliArgs) -> Self {
+    pub fn new(addr: std::net::SocketAddr, config: cfg::Run) -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let (data_sender, data_receiver) = mpsc::unbounded_channel();
         let mut rpc_client = Client::new(receiver, data_receiver);
@@ -64,7 +60,7 @@ impl ClientHandle {
 
         let join_handle = std::thread::spawn(move || {
             // runtime is started here
-            return rt.block_on(async move { rpc_client.main(args, data_sender).await });
+            return rt.block_on(async move { rpc_client.main(addr, config, data_sender).await });
         });
 
         ClientHandle {
@@ -152,18 +148,10 @@ impl subscriber::Server<service_pub::Owned> for SubscriberImpl {
 impl Client {
     async fn main(
         &mut self,
-        cli: CliArgs,
+        addr: std::net::SocketAddr,
+        config: cfg::Run,
         data_sender: mpsc::UnboundedSender<StreamData>,
     ) -> Result<Box<RawChannelSettings>> {
-        use std::net::ToSocketAddrs;
-
-        let addr = cli
-            .addr
-            .to_socket_addrs()
-            .unwrap()
-            .next()
-            .expect("could not parse address");
-
         tokio::task::LocalSet::new()
             .run_until(async move {
                 // Receives data from RPC calls and passes it to the app
@@ -213,22 +201,13 @@ impl Client {
                     sender: data_sender,
                 });
 
-                // Process the config file
-                let path = Path::new(&cli.config);
-                let mut f = File::open(path).await?;
-                let mut s = String::new();
-                tokio::io::AsyncReadExt::read_to_string(&mut f, &mut s).await?;
-                let config: cfg::Run = toml::de::from_str(&s)?;
-
-                println!("runfile processed");
-
                 let mut pats = Vec::new();
-                for s in config.singles {
+                for s in config.clone().singles {
                     if let cfg::Single::Channel(ch) = s {
                         pats.push((chans_to_mask(&[ch]), None));
                     }
                 }
-                for c in config.coincidences {
+                for c in config.clone().coincidences {
                     match c {
                         cfg::Coincidence::Channels((ch_a, ch_b)) => {
                             pats.push((chans_to_mask(&[ch_a, ch_b]), None));
@@ -242,8 +221,8 @@ impl Client {
                 }
 
                 // Assemble the channel settings first
-                let mut set_reqs = Vec::new();
-                for cs in config.channel_settings {
+                //let mut set_reqs = Vec::new();
+                for cs in config.channel_settings.iter() {
                     let ch = cs.channel;
                     if let Some(del) = cs.delay {
                         let mut req = publisher.set_input_request();
@@ -251,7 +230,8 @@ impl Client {
                         let mut dbdr = rbdr.reborrow().init_s().init_delay();
                         dbdr.reborrow().set_ch(ch);
                         dbdr.reborrow().set_del(del);
-                        set_reqs.push(req.send().promise);
+                        req.send().promise.await?;
+                        //set_reqs.push(req.send().promise);
                     }
                     if let Some(inv) = cs.invert {
                         let mut req = publisher.set_input_request();
@@ -259,7 +239,8 @@ impl Client {
                         let mut dbdr = rbdr.reborrow().init_s().init_inversion();
                         dbdr.reborrow().set_ch(ch);
                         dbdr.reborrow().set_inv(inv);
-                        set_reqs.push(req.send().promise);
+                        req.send().promise.await?;
+                        //set_reqs.push(req.send().promise);
                     }
                     if let Some(th) = cs.threshold {
                         let mut req = publisher.set_input_request();
@@ -267,13 +248,14 @@ impl Client {
                         let mut dbdr = rbdr.reborrow().init_s().init_threshold();
                         dbdr.reborrow().set_ch(ch);
                         dbdr.reborrow().set_th(th);
-                        set_reqs.push(req.send().promise);
+                        req.send().promise.await?;
+                        //set_reqs.push(req.send().promise);
                     }
                 }
 
                 println!("sending channel settings");
                 // Run the channel settings futures to completion first, before requesting data
-                futures::future::try_join_all(set_reqs).await?;
+                //futures::future::try_join_all(set_reqs).await?;
                 println!("channel settings applied");
 
                 // Assemble the service sub request

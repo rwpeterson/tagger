@@ -3,10 +3,11 @@ use chrono::Local;
 use tagsave::CliArgs;
 use parking_lot::Mutex;
 use std::collections::HashMap;
+use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use std::io::Read;
+use std::io::BufReader;
 
 use tagtools::{CHAN16, Tag, bit, cfg};
 
@@ -18,12 +19,19 @@ async fn main() -> Result<()> {
     // Parse command line arguments
     let args: CliArgs = argh::from_env();
 
+    // Load address
+    let addr = args
+        .addr
+        .to_socket_addrs()
+        .unwrap()
+        .next()
+        .expect("could not parse address");
+
     // Load the run file
     let cfg_path = std::path::Path::new(&args.config);
-    let mut f = std::fs::File::open(cfg_path)?;
-    let mut s = String::new();
-    f.read_to_string(&mut s)?;
-    let config: cfg::Run = toml::de::from_str(&s)?;
+    let f = std::fs::File::open(cfg_path)?;
+    let rdr = BufReader::new(f);
+    let config: cfg::Run = serde_json::from_reader(rdr)?;
 
     // Get tick rate
     let tick_rate = Duration::from_millis(args.tick_rate);
@@ -43,7 +51,7 @@ async fn main() -> Result<()> {
     let mut last_tick = first_tick;
 
     // Start client thread, connect to server
-    let client = ClientHandle::new(args);
+    let client = ClientHandle::new(addr, config.clone());
 
     loop {
         let (respond_to, response) = flume::bounded(1);
@@ -166,7 +174,7 @@ async fn main() -> Result<()> {
         );
     }
 
-    let s2 = toml::ser::to_string(&record)?;
+    let s2 = serde_json::to_string(&record)?;
 
     println!("{}", s2);
 

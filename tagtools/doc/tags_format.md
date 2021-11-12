@@ -8,8 +8,25 @@ benchmarks against other candidate formats.
 
 These files consistently use the `.tags.zst` extension, and reference
 implementations of tools to work with them are in the `tagtools`
-crate. The `.capnp` files that define the schema are in the
-`tagger_capnp` crate.
+crate. The `tags.capnp` file that defines the schema is in the
+`tagger_capnp` crate. It will (hopefully) never need to change,
+so I can copy it here as well:
+
+```capnproto
+@0xd932ef88b339497e;
+struct Tags @0xb1642a9902d01394 {  # 0 bytes, 1 ptrs
+  tags @0 :List(List(Tag));  # ptr[0]
+  struct Tag @0x8995b3a3aece585b {  # 16 bytes, 0 ptrs
+    time @0 :Int64;  # bits[0, 64)
+    channel @1 :UInt8;  # bits[64, 72)
+  }
+}
+```
+
+The unique IDs and byte layout comments of the structs are automatically
+produced by the `capnpc` compiler, but are retained in the source to make
+it easier for someone with no knowledge of the format to hand-write a
+parser if need be.
 
 You can generate code to work with the format with any supported language:
 all you need is the `tags.capnp` file. We use the default unpacked
@@ -63,7 +80,7 @@ hierarchical structure to the tags, so we can simply repeat this 9 byte
 record for as many tags as we have. Ideally, the format would start with
 a header or "magic number" to help identity the file.
 
-This approach has the disadvantages of requiring custom parsing to be
+This approach has the disadvantages of requiring custom parsers to be
 written by hand in every language using this format, likely introducing
 bugs. It also leaves some efficiency on the table, as the i64s in our
 case are nonnegative and usually small, so a variable-length encoding
@@ -107,6 +124,13 @@ of others (easy API, stability, security). We should not be too quick to
 cargo-cult bigtech tools and software engineering practices in response,
 but identifying where they have solved useful general-purpose problems
 can help save us time and effort.
+
+Taking a step back, we can see that HDF provides a "solution" to some
+problems that don't need to be solved. It provides a filesystem-like
+hierarchical structure--just use your filesystem instead and zip it up! We
+are concerned in this application with a single, linear stream of a single
+type of data that arrives ordered in time, so even a single-file database
+is overkill.
 
 [b]: https://cyrille.rossant.net/moving-away-hdf5/
 
