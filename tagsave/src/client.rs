@@ -13,7 +13,7 @@ use tagtools::{bit::chans_to_mask, cfg, Tag};
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 
-pub struct RawChannelSettings {
+pub struct RawChannelState {
     pub invm: u16,
     pub dels: Vec<u32>,
     pub thrs: Vec<f64>,
@@ -28,9 +28,19 @@ pub enum ClientMessage {
     GetData {
         respond_to: flume::Sender<Option<Vec<StreamData>>>,
     },
-    GetSettings {
-        respond_to: flume::Sender<InputState>,
+    GetAllChannelSettings {
+        respond_to: flume::Sender<ChannelState>,
     },
+    SetChannelSettings {
+        settings: ChannelSettings,
+        respond_to: flume::Sender<Result<()>>,
+    }
+}
+
+pub enum ChannelSettings {
+    ChannelInversion((u8, bool)),
+    ChannelDelay((u8, u32)),
+    ChannelThreshold((u8, f64))
 }
 
 impl Client {
@@ -48,7 +58,7 @@ impl Client {
 
 pub struct ClientHandle {
     pub sender: mpsc::UnboundedSender<ClientMessage>,
-    pub join_handle: std::thread::JoinHandle<Result<Box<RawChannelSettings>>>,
+    pub join_handle: std::thread::JoinHandle<Result<Box<RawChannelState>>>,
 }
 
 impl ClientHandle {
@@ -88,7 +98,7 @@ pub struct LogicPattern {
     pub window: Option<u32>,
 }
 
-pub struct InputState {
+pub struct ChannelState {
     pub inversion_mask: u16,
     pub delays: Vec<u32>,
     pub thresholds: Vec<f64>,
@@ -151,7 +161,7 @@ impl Client {
         addr: std::net::SocketAddr,
         config: cfg::Run,
         data_sender: mpsc::UnboundedSender<StreamData>,
-    ) -> Result<Box<RawChannelSettings>> {
+    ) -> Result<Box<RawChannelState>> {
         tokio::task::LocalSet::new()
             .run_until(async move {
                 // Receives data from RPC calls and passes it to the app
@@ -284,7 +294,7 @@ impl Client {
                 let invm = rdr.reborrow().get_inversionmask();
                 let dels: Vec<u32> = rdr.reborrow().get_delays().unwrap().iter().collect();
                 let thrs: Vec<f64> = rdr.reborrow().get_thresholds().unwrap().iter().collect();
-                let raw_settings = RawChannelSettings { invm, dels, thrs };
+                let raw_settings = RawChannelState { invm, dels, thrs };
                 println!("data received");
                 Ok(Box::new(raw_settings))
             }
