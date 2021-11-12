@@ -12,8 +12,8 @@ use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{
     input_settings, publisher, service_pub, service_sub, subscriber, subscription,
 };
+use tagtools::bit;
 
-use crate::bit;
 use crate::{Event, InputSetting};
 use crate::processor;
 
