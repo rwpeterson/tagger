@@ -257,8 +257,6 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         let delays = self.delays.read();
         let thresholds = self.thresholds.read();
 
-        println!("Request to get input settings received");
-
         let mut bdr = results.get().init_s();
         bdr.set_inversionmask(*invmask);
         let mut d_bdr = bdr.reborrow().init_delays(delays.len() as u32);
@@ -270,6 +268,8 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
             t_bdr.set(i as u32, t);
         }
         
+        println!("get inputs request: ok");
+
         Promise::ok(())
     }
 }
