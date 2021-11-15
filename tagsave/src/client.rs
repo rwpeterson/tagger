@@ -5,7 +5,7 @@
 use anyhow::Result;
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
-use futures::AsyncReadExt;
+use futures::{AsyncReadExt, FutureExt};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
@@ -24,17 +24,13 @@ struct Client {
     buffer: Arc<Mutex<Vec<StreamData>>>,
     data_receiver: mpsc::UnboundedReceiver<StreamData>,
 }
+
+#[derive(Debug)]
 pub enum ClientMessage {
     GetData {
         respond_to: flume::Sender<Option<Vec<StreamData>>>,
     },
-    GetAllChannelSettings {
-        respond_to: flume::Sender<ChannelState>,
-    },
-    SetChannelSettings {
-        settings: ChannelSettings,
-        respond_to: flume::Sender<Result<()>>,
-    }
+    Shutdown,
 }
 
 pub enum ChannelSettings {
@@ -169,16 +165,19 @@ impl Client {
                     loop {
                         tokio::select! {
                             Some(msg) = self.receiver.recv() => {
-                                if let ClientMessage::GetData { respond_to } = msg {
-                                    let b = self.buffer.clone();
-                                    let mut buffer = b.lock();
-                                    let _ = match (*buffer).is_empty() {
-                                        true => respond_to.send(None),
-                                        false => {
-                                            let data = (*buffer).drain(..).collect();
-                                            respond_to.send(Some(data))
-                                        },
-                                    };
+                                match msg {
+                                    ClientMessage::GetData { respond_to } => {
+                                        let b = self.buffer.clone();
+                                        let mut buffer = b.lock();
+                                        let _ = match (*buffer).is_empty() {
+                                            true => respond_to.send(None),
+                                            false => {
+                                                let data = (*buffer).drain(..).collect();
+                                                respond_to.send(Some(data))
+                                            },
+                                        };
+                                    }
+                                    ClientMessage::Shutdown => break,
                                 }
                             },
                             Some(msg) = self.data_receiver.recv() => {
@@ -211,6 +210,8 @@ impl Client {
                     sender: data_sender,
                 });
 
+                let _ = tokio::task::spawn_local(Box::pin(rpc_system.map(|_| ())));
+
                 let mut pats = Vec::new();
                 for s in config.clone().singles {
                     if let cfg::Single::Channel(ch) = s {
@@ -231,17 +232,15 @@ impl Client {
                 }
 
                 // Assemble the channel settings first
-                //let mut set_reqs = Vec::new();
+                let mut set_reqs = Vec::new();
                 for cs in config.channel_settings.iter() {
                     let ch = cs.channel;
                     if let Some(del) = cs.delay {
                         let mut req = publisher.set_input_request();
-                        let mut rbdr = req.get();
-                        let mut dbdr = rbdr.reborrow().init_s().init_delay();
-                        dbdr.reborrow().set_ch(ch);
-                        dbdr.reborrow().set_del(del);
-                        req.send().promise.await?;
-                        //set_reqs.push(req.send().promise);
+                        let mut dbdr = req.get().init_s().init_delay();
+                        dbdr.set_ch(ch);
+                        dbdr.set_del(del);
+                        set_reqs.push(req.send().promise);
                     }
                     if let Some(inv) = cs.invert {
                         let mut req = publisher.set_input_request();
@@ -249,8 +248,7 @@ impl Client {
                         let mut dbdr = rbdr.reborrow().init_s().init_inversion();
                         dbdr.reborrow().set_ch(ch);
                         dbdr.reborrow().set_inv(inv);
-                        req.send().promise.await?;
-                        //set_reqs.push(req.send().promise);
+                        set_reqs.push(req.send().promise);
                     }
                     if let Some(th) = cs.threshold {
                         let mut req = publisher.set_input_request();
@@ -258,15 +256,11 @@ impl Client {
                         let mut dbdr = rbdr.reborrow().init_s().init_threshold();
                         dbdr.reborrow().set_ch(ch);
                         dbdr.reborrow().set_th(th);
-                        req.send().promise.await?;
-                        //set_reqs.push(req.send().promise);
+                        set_reqs.push(req.send().promise);
                     }
                 }
-
-                println!("sending channel settings");
                 // Run the channel settings futures to completion first, before requesting data
-                //futures::future::try_join_all(set_reqs).await?;
-                println!("channel settings applied");
+                futures::future::try_join_all(set_reqs).await?;
 
                 // Assemble the service sub request
                 let mut data_req = publisher.subscribe_request();
@@ -283,19 +277,17 @@ impl Client {
                 let get_req = publisher.get_inputs_request();
 
                 // Need to make sure not to drop the returned subscription object.
-                let tuple = futures::future::try_join4(
-                    rpc_system,
+                let tuple = futures::future::try_join3(
                     data_req.send().promise,
                     get_req.send().promise,
                     client_future,
                 );
-                let (_, _, get_reply, _) = tuple.await?;
+                let (_, get_reply, _) = tuple.await?;
                 let rdr = get_reply.get().unwrap().get_s().unwrap();
                 let invm = rdr.reborrow().get_inversionmask();
                 let dels: Vec<u32> = rdr.reborrow().get_delays().unwrap().iter().collect();
                 let thrs: Vec<f64> = rdr.reborrow().get_thresholds().unwrap().iter().collect();
                 let raw_settings = RawChannelState { invm, dels, thrs };
-                println!("data received");
                 Ok(Box::new(raw_settings))
             }
         ).await

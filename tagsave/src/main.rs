@@ -3,11 +3,12 @@ use chrono::Local;
 use tagsave::CliArgs;
 use parking_lot::Mutex;
 use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter, Write};
 
 use tagtools::{CHAN16, Tag, bit, cfg};
 
@@ -28,10 +29,13 @@ async fn main() -> Result<()> {
         .expect("could not parse address");
 
     // Load the run file
+    let config: cfg::Run;
     let cfg_path = std::path::Path::new(&args.config);
-    let f = std::fs::File::open(cfg_path)?;
-    let rdr = BufReader::new(f);
-    let config: cfg::Run = serde_json::from_reader(rdr)?;
+    {
+        let f = File::open(cfg_path)?;
+        let rdr = BufReader::new(f);
+        config = serde_json::from_reader(rdr)?;
+    }
 
     // Get tick rate
     let tick_rate = Duration::from_millis(args.tick_rate);
@@ -78,7 +82,7 @@ async fn main() -> Result<()> {
                     }
                 }
             }
-            None => break,
+            None => {},
         }
 
         // Save tags to disk
@@ -132,6 +136,8 @@ async fn main() -> Result<()> {
         last_tick = Instant::now();
     }
 
+    client.sender.send(ClientMessage::Shutdown)?;
+
     let raw_settings = client.join_handle.join().unwrap()?;
 
     // Now record the run record to disk
@@ -174,9 +180,37 @@ async fn main() -> Result<()> {
         );
     }
 
-    let s2 = serde_json::to_string(&record)?;
+    let json_record = serde_json::to_string(&record)?;
 
-    println!("{}", s2);
+    let ts = Local::now();
+    let mut rcd_stem = cfg_path
+        .file_stem()
+        .unwrap_or_else(|| std::ffi::OsStr::new("data"))
+        .to_string_lossy()
+        .to_string();
+    rcd_stem.push('_');
+    let mut rcd_name = String::from(&rcd_stem);
+    rcd_name.push_str(&ts.format("%F_%H-%M-%S").to_string());
+    let mut rcd_name2 = String::from(&rcd_stem);
+    rcd_name2.push_str(&ts.format("%F_%H-%M-%S%.3f").to_string());
+    let mut rcd_path = cfg_path.with_file_name(rcd_name);
+    let mut rcd_path2 = cfg_path.with_file_name(rcd_name2);
+    rcd_path.set_extension("json");
+    rcd_path2.set_extension("json");
+    {
+        let f = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(rcd_path).unwrap_or_else( |_|
+                OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(rcd_path2)
+                    .expect("Saving more than one file per millisecond")
+            );
+        let mut  wtr = BufWriter::new(f);
+        wtr.write_all(json_record.as_bytes())?;
+    }
 
     Ok(())
 }
