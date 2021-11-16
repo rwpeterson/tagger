@@ -1,0 +1,20 @@
+* overall
+** TODO version and commit information bundled from git
+** TODO packaging and release procedure using cargo-xtask
+** BUG coincidences are not registering
+** TODO bump to 1.0
+* tagview
+** TODO view channel settings
+** TODO manipulate channel settings
+** TODO import/export channel settings
+* tagsave
+** TODO progress bar
+** DONE human-format json output
+* streamer
+** TODO regularize logging with timestamps
+** TODO change =set_fg= call to a command-line flag
+** BUG discrepancy between duration and number of counts from function generator
+* tag_server.capnp users
+** TODO consistent default value and behavior for coincidence window size
+* timetag
+** BUG CXX: catch foreign exceptions in =Result<T>=
