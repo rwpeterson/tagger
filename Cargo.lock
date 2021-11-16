@@ -51,15 +51,9 @@ checksum = "7dfdb4953a096c551ce9ace855a604d702e6e62d77fac690575ae347571717f5"
 
 [[package]]
 name = "bit-iter"
-version = "0.1.5"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "514abd67d3f7e56aa7c8181b8668fe52ddd04992748d01d955016d9672df7953"
-
-[[package]]
-name = "bit-iter"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "499e20b929cd9c73095a360a5ff34dd57587775dfa6225d07ff9ac799bfae3a2"
+checksum = "4826e5298710fe9ce6264a7bf709cf2ddb0cd19e377595040a997022189a2356"
 
 [[package]]
 name = "bitflags"
@@ -989,7 +983,7 @@ name = "streamer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bit-iter 0.1.5",
+ "bit-iter",
  "capnp",
  "capnp-rpc",
  "chrono",
@@ -1033,7 +1027,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "argh",
- "bit-iter 1.0.0",
+ "bit-iter",
  "capnp",
  "capnp-rpc",
  "chrono",
@@ -1054,7 +1048,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bencher",
- "bit-iter 1.0.0",
+ "bit-iter",
  "capnp",
  "chrono",
  "csv",
@@ -1073,7 +1067,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "argh",
- "bit-iter 1.0.0",
+ "bit-iter",
  "capnp",
  "capnp-rpc",
  "chrono",
