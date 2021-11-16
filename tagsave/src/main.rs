@@ -180,7 +180,7 @@ async fn main() -> Result<()> {
         );
     }
 
-    let json_record = serde_json::to_string(&record)?;
+    let json_record = serde_json::to_string_pretty(&record)?;
 
     let ts = Local::now();
     let mut rcd_stem = cfg_path
