@@ -7,18 +7,29 @@ use std::fs::{File, OpenOptions};
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-
 use std::io::{BufReader, BufWriter, Write};
-
 use tagtools::{CHAN16, Tag, bit, cfg};
-
 use tagsave::client::{ClientHandle, ClientMessage};
 use tagsave::save::{SaveHandle, SaveMessage, SaveTags};
+
+const GIT_VERSION: &str = git_version::git_version!();
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     // Parse command line arguments
     let args: CliArgs = argh::from_env();
+
+    if args.version {
+        println!(
+            concat!(
+                env!("CARGO_BIN_NAME"),
+                " ",
+                "{}",
+            ),
+            GIT_VERSION,
+        );
+        return Ok(())
+    }
 
     // Load address
     let addr = args
@@ -29,13 +40,23 @@ async fn main() -> Result<()> {
         .expect("could not parse address");
 
     // Load the run file
-    let config: cfg::Run;
-    let cfg_path = std::path::Path::new(&args.config);
-    {
-        let f = File::open(cfg_path)?;
-        let rdr = BufReader::new(f);
-        config = serde_json::from_reader(rdr)?;
+    if let None = args.config {
+        panic!("no runfile provided!");
     }
+    let cfg_path;
+    let config;
+    match args.config {
+        Some(c) => {
+            cfg_path = std::path::PathBuf::from(c.clone());
+            let f = File::open(cfg_path.as_path())?;
+            let rdr = BufReader::new(f);
+            config = serde_json::from_reader(rdr)?;
+        },
+        None => {
+            cfg_path = std::path::PathBuf::from("data");
+            config = cfg::Run::default();
+        }
+    };
 
     // Get tick rate
     let tick_rate = Duration::from_millis(args.tick_rate);
@@ -184,6 +205,7 @@ async fn main() -> Result<()> {
 
     let ts = Local::now();
     let mut rcd_stem = cfg_path
+        .as_path()
         .file_stem()
         .unwrap_or_else(|| std::ffi::OsStr::new("data"))
         .to_string_lossy()

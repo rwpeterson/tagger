@@ -3,6 +3,9 @@ use argh::FromArgs;
 #[derive(Debug, FromArgs, Clone)]
 /// cli app args
 pub struct CliArgs {
+    /// print version information
+    #[argh(switch, short = 'v')]
+    pub version: bool,
     /// tick period in ms
     #[argh(option, default = "250")]
     pub tick_rate: u64,
@@ -11,7 +14,7 @@ pub struct CliArgs {
     pub addr: String,
     /// config file path
     #[argh(option)]
-    pub config: String,
+    pub config: Option<String>,
 }
 
 pub mod client;
