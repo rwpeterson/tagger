@@ -1,6 +1,6 @@
 * overall
 ** TODO version and commit information bundled from git
-** TODO packaging and release procedure using cargo-xtask
+** DONE packaging and release procedure using cargo-xtask
 ** BUG coincidences are not registering
 ** TODO bump to 1.0
 * tagview

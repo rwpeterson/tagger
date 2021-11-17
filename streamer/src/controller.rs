@@ -18,6 +18,7 @@ pub fn main(
     for ch in CHAN16 {
         tt.set_input_threshold(ch, 2.0);
     }
+    // TODO: reduce set_fg to a command-line debug flag
     tt.set_fg(200_000, 100_000);
     tt.start_timetags();
     tt.freeze_single_counter();
@@ -30,6 +31,7 @@ pub fn main(
                     let tags: Vec<Tag> = tt
                         .read_tags()
                         .iter()
+                        // BUG: does this map cause the discrepancy in times?
                         .map(|t: &FfiTag| Tag {
                             time: t.time,
                             channel: t.channel,
