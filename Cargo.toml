@@ -6,4 +6,5 @@ members = [
     "tagsave",
     "tagtools",
     "tagview",
+    "xtask",
 ]
