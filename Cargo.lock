@@ -1110,6 +1110,7 @@ name = "streamer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "argh",
  "bit-iter",
  "capnp",
  "capnp-rpc",
@@ -1117,6 +1118,7 @@ dependencies = [
  "cxx",
  "flume",
  "futures",
+ "git-version",
  "num",
  "parking_lot",
  "rand",
@@ -1202,6 +1204,7 @@ dependencies = [
  "crossterm 0.22.1",
  "flume",
  "futures",
+ "git-version",
  "parking_lot",
  "serde",
  "serde_json",

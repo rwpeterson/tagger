@@ -21,6 +21,8 @@ use tagview::{
 };
 use tui::{backend::CrosstermBackend, Terminal};
 
+const GIT_VERSION: &str = git_version::git_version!();
+
 /// Timetag visualization client
 /// 
 /// ## Structure
@@ -51,16 +53,28 @@ use tui::{backend::CrosstermBackend, Terminal};
 ///
 ///
 fn main() -> Result<()> {
-    let cli: Cli = argh::from_env();
+    let args: Cli = argh::from_env();
 
-    let addr = cli.addr
+    if args.version {
+        println!(
+            concat!(
+                env!("CARGO_BIN_NAME"),
+                " ",
+                "{}",
+            ),
+            GIT_VERSION,
+        );
+        return Ok(())
+    }
+
+    let addr = args.addr
         .to_socket_addrs()
         .unwrap()
         .next()
         .expect("could not parse address");
 
     // Process the config for subscription
-    let path = PathBuf::from(&cli.config);
+    let path = PathBuf::from(&args.config);
     let f = File::open(path)?;
     let rdr = BufReader::new(f);
     let config: cfg::Run = serde_json::from_reader(rdr)?;
@@ -70,7 +84,7 @@ fn main() -> Result<()> {
     let client_handle = ClientHandle::new(addr, config.clone());
 
     // Event thread - forwards input events and sends ticks
-    let tick_rate = Duration::from_millis(cli.tick_rate);
+    let tick_rate = Duration::from_millis(args.tick_rate);
     let timer_handle = TimerHandle::new(tick_rate);
 
     // Disk IO thread
@@ -88,7 +102,7 @@ fn main() -> Result<()> {
     // Main loop - blocks on receiving events for input and ticks
     let mut app = App::new(
         "tagview",
-        cli.enhanced_graphics,
+        args.enhanced_graphics,
         client_handle,
         save_handle,
     );

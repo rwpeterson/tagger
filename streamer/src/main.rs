@@ -1,7 +1,22 @@
-use streamer::server;
+use streamer::{CliArgs, server};
+
+const GIT_VERSION: &str = git_version::git_version!();
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _args: Vec<String> = ::std::env::args().collect();
-    server::main().await
+     
+    let args: CliArgs = argh::from_env();
+
+    if args.version {
+        println!(
+            concat!(
+                env!("CARGO_BIN_NAME"),
+                " ",
+                "{}",
+            ),
+            GIT_VERSION,
+        );
+        return Ok(())
+    }
+    server::main(args).await
 }

@@ -15,6 +15,9 @@ pub struct Cli {
     /// use unicode graphics
     #[argh(option, default = "true")]
     pub enhanced_graphics: bool,
+    /// print version information
+    #[argh(switch, short = 'v')]
+    pub version: bool,
     /// server address
     #[argh(option, default = "String::from(\"127.0.0.1:6969\")")]
     pub addr: String,

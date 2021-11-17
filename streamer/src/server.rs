@@ -8,13 +8,14 @@ use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::{AsyncReadExt, FutureExt};
 use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
+use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{
     input_settings, publisher, service_pub, service_sub, subscriber, subscription,
 };
 use tagtools::bit;
 
-use crate::{Event, InputSetting};
+use crate::{Event, InputSetting, CliArgs};
 use crate::processor;
 
 const FIRST_SEGMENT_WORDS: usize = 1 << 24; // 2^24 words = 128 MiB
@@ -274,20 +275,13 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
     }
 }
 
-pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use std::net::ToSocketAddrs;
-    let args: Vec<String> = ::std::env::args().collect();
-    if args.len() != 3 {
-        println!("usage: {} server HOST:PORT", args[0]);
-        return Ok(());
-    }
-
+pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     // spawn timer thread
     let (sender_timer, receiver_timer) = flume::bounded(1);
     let (sender_event, receiver_event) = flume::unbounded();
     crate::timer::main(sender_timer.clone())?;
 
-    let addr = args[2]
+    let addr = args.addr
         .to_socket_addrs()
         .unwrap()
         .next()
