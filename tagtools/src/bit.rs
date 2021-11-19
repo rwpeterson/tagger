@@ -100,9 +100,7 @@ mod tests {
     #[test]
     fn bijective() {
         // Exhaustively check all u16s
-        let pats = (u16::MIN..=u16::MAX).collect::<Vec<_>>();
-
-        for pat in pats {
+        for pat in u16::MIN..=u16::MAX {
             let chs = mask_to_chans(pat);
             assert!(!chs.contains(&0));
             let pat2 = chans_to_mask(&chs);
