@@ -2,7 +2,8 @@
 #define CTIMETAG_ONCE
 
 #define _CRT_SECURE_NO_DEPRECATE  //supress microsoft warnings
-#include <string>  
+#include <string>
+#include <stdexcept>
 
 typedef long long TimeType;
 typedef unsigned char ChannelType;
@@ -16,21 +17,19 @@ class CTimetagReader;
 class CLogic;
 class CTest;
 
-class Exception 
+class Exception:public std::runtime_error
 {
 	private:
-		std::string text;
+
 	public:
 		Exception(const char * m):
-			text(m){}  
+			std::runtime_error(m){}
 		Exception(std::string m):
-			text(m){}
-
-		std::string GetMessageText()
-		{
-			return text;
-		}
-
+			runtime_error(m.c_str()){}
+			std::string GetMessageText()
+			{
+				return what();
+			}
 };
 			
 class CTimeTag
@@ -85,6 +84,7 @@ class CTimeTag
 		void StartTimetags();
 		void StopTimetags();
 		int ReadTags(ChannelType*& channel_ret, TimeType *&time_ret);
+		bool ReadNextTag(ChannelType & channel, TimeType &time);
 		void SaveDcCalibration(char * filename);
 		void LoadDcCalibration(char * filename);
 		void SetFG(int periode, int high);
@@ -94,7 +94,6 @@ class CTimeTag
 		long long FreezeSingleCounter();
 
 	private:
-	//	void CheckOpen();
 		void Init();
 		double GetDcCalibration(int chan);
 };
