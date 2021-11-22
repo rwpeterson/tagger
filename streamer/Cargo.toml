@@ -11,7 +11,6 @@ argh = "0.1"
 bit-iter = "1.1"
 capnp = "0.14"
 capnp-rpc = "0.14"
-chrono = "0.4"
 cxx = "1.0"
 flume = "0.10"
 futures = "0.3"
@@ -26,3 +25,6 @@ tagtools = { path = "../tagtools" }
 timetag = { path = "../timetag" }
 tokio = { version = "1.7", features = ["full"] }
 tokio-util = { version = "0.6", features = ["compat"] }
+tracing = "0.1"
+tracing-futures = "0.2"
+tracing-subscriber = "0.3"

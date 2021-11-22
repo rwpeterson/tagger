@@ -1,9 +1,10 @@
 use anyhow::{bail, Result};
-use chrono::{SecondsFormat, Utc};
-use tagtools::Tag;
-use tagtools::CHAN16;
+use tagtools::{CHAN16, Tag};
 use timetag::error_text;
 use timetag::ffi::{new_time_tagger, FfiTag};
+
+#[allow(unused_imports)]
+use tracing::{debug, error, info, span, warn, Instrument, Level};
 
 use crate::{Event, InputSetting};
 
@@ -13,6 +14,9 @@ pub fn main(
     receiver_event: flume::Receiver<Event>,
     sender: flume::Sender<(Vec<Tag>, u64)>,
 ) -> Result<()> {
+    let span = span!(Level::WARN, "controller");
+    let _enter = span.enter();
+
     let tt = new_time_tagger();
     tt.open();
     for ch in CHAN16 {
@@ -40,16 +44,7 @@ pub fn main(
 
                     let flags = tt.read_error_flags();
                     if flags != 0 {
-                        let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-                        let t0 = match &tags.get(0) {
-                            Some(t) => format!("{}", t.time),
-                            None => String::from("[no tags]"),
-                        };
-                        print!("{}\t{}", ts, t0);
-                        for error in error_text(flags) {
-                            print!("\t{}", error);
-                        }
-                        println!("");
+                        error!("tag {:?}: {:?}", &tags.get(0).and_then(|t| Some(t.time)).unwrap_or(0), error_text(flags));
                     }
 
                     sender.send((tags, dur))?;

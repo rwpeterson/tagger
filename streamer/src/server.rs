@@ -1,4 +1,4 @@
-// Adapted from the capnproto-rust pubsub example code at
+// Pubsub pattern adapted from the capnproto-rust pubsub example code at
 // https://github.com/capnproto/capnproto-rust/blob/master/capnp-rpc/examples/pubsub/server.rs
 // Copyright (c) 2013-2016 Sandstorm Development Group, Inc. and contributors
 
@@ -14,6 +14,9 @@ use tagger_capnp::tag_server_capnp::{
     input_settings, publisher, service_pub, service_sub, subscriber, subscription,
 };
 use tagtools::bit;
+
+#[allow(unused_imports)]
+use tracing::{debug, error, info, span, warn, Instrument, Level};
 
 use crate::{Event, InputSetting, CliArgs};
 use crate::processor;
@@ -55,8 +58,10 @@ impl SubscriptionImpl {
 
 impl Drop for SubscriptionImpl {
     fn drop(&mut self) {
-        println!("subscription dropped");
+        let span = span!(Level::INFO, "subscription_drop");
+        let _enter = span.enter();
         self.subscribers.lock().subscribers.remove(&self.id);
+        info!("subscription dropped");
     }
 }
 
@@ -133,6 +138,9 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
     ) -> Promise<(), ::capnp::Error> {
         use service_sub::patmasks as p;
 
+        let span = span!(Level::INFO, "subscribe");
+        let _enter = span.enter();
+
         // Gather subscription parameters
         let svc_rdr = pry!(pry!(params.get()).get_services());
         let tagmask = svc_rdr.reborrow().get_tagmask();
@@ -157,14 +165,7 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
             },
         };
 
-        print!("subscribe: [");
-        for (pat, win) in patmasks.clone() {
-            match win {
-                Some(w) => print!("{:#x} ({}), ", pat, w),
-                None => print!("{:#x}, ", pat),
-            }
-        }
-        println!("]");
+        info!("mask {:x?}", patmasks.clone());
 
         let sub_client = pry!(pry!(params.get()).get_subscriber());
 
@@ -199,13 +200,15 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         _results: publisher::SetInputResults<::capnp::any_pointer::Owned>,
     ) -> capnp::capability::Promise<(), capnp::Error> {
         use input_settings::Which as w;
+        let span = span!(Level::INFO, "set_input");
+        let _enter = span.enter();
         match pry!(pry!(pry!(params.get()).get_s()).which()) {
             w::Inversion(r) => {
                 let rdr = pry!(r);
                 let ch = rdr.get_ch();
                 let inv = rdr.get_inv();
-                println!(
-                    "set channel {}: inversion mask {}",
+                info!(
+                    "channel {}, inversion {}",
                     ch,
                     inv,
                 );
@@ -220,8 +223,8 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                 let mut delays = self.delays.write();
                 let ch = rdr.get_ch();
                 let del = rdr.get_del();
-                println!(
-                    "set channel {}: delay {}",
+                info!(
+                    "channel {}, delay {}",
                     ch,
                     del,
                 );
@@ -235,8 +238,8 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                 let mut thresholds = self.thresholds.write();
                 let ch = rdr.get_ch();
                 let th = rdr.get_th();
-                println!(
-                    "set channel {} threshold: {} V",
+                info!(
+                    "channel {}, threshold {} V",
                     ch,
                     th,
                 );
@@ -254,6 +257,9 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         _params: publisher::GetInputsParams<::capnp::any_pointer::Owned>,
         mut results: publisher::GetInputsResults<::capnp::any_pointer::Owned>
     ) -> capnp::capability::Promise<(), capnp::Error> {
+        let span = span!(Level::INFO, "get_inputs");
+        let _enter = span.enter();
+
         let invmask = self.invmask.read();
         let delays = self.delays.read();
         let thresholds = self.thresholds.read();
@@ -269,12 +275,13 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
             t_bdr.set(i as u32, t);
         }
         
-        println!("get inputs request: ok");
+        info!("processed");
 
         Promise::ok(())
     }
 }
 
+#[tracing::instrument]
 pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     // spawn timer thread
     let (sender_timer, receiver_timer) = flume::bounded(1);
@@ -392,7 +399,7 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
                                         );
                                     }
                                     Err(e) => {
-                                        println!("Got error: {:?}. Dropping subscriber.", e);
+                                        info!("Dropping subscriber: {:?}", e);
                                         subscribers2.lock().subscribers.remove(&idx);
                                     }
                                 },
