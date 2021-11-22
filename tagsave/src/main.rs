@@ -20,14 +20,17 @@ async fn main() -> Result<()> {
     let args: CliArgs = argh::from_env();
 
     if args.version {
-        println!(
+        let stdout = std::io::stdout();
+        let mut stdout = stdout.lock();
+        writeln!(
+            stdout,
             concat!(
                 env!("CARGO_BIN_NAME"),
                 " ",
                 "{}",
             ),
             GIT_VERSION,
-        );
+        )?;
         return Ok(())
     }
 

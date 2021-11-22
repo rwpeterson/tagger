@@ -6,7 +6,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::fs::File;
-use std::io::{BufReader, stdout};
+use std::io::{BufReader, stdout, Write};
 use std::net::ToSocketAddrs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -56,14 +56,17 @@ fn main() -> Result<()> {
     let args: Cli = argh::from_env();
 
     if args.version {
-        println!(
+        let stdout = std::io::stdout();
+        let mut stdout = stdout.lock();
+        writeln!(
+            stdout,
             concat!(
                 env!("CARGO_BIN_NAME"),
                 " ",
                 "{}",
             ),
             GIT_VERSION,
-        );
+        )?;
         return Ok(())
     }
 
