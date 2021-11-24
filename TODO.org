@@ -1,20 +1,27 @@
 * overall
-** TODO version and commit information bundled from git
+** DONE version and commit information bundled from git
 ** DONE packaging and release procedure using cargo-xtask
 ** BUG coincidences are not registering
+** DONE bump vendor version to v2.35
 ** TODO bump to 1.0
 * tagview
 ** TODO view channel settings
 ** TODO manipulate channel settings
 ** TODO import/export channel settings
+** TODO change quit keybinding
 * tagsave
 ** TODO progress bar
 ** DONE human-format json output
 * streamer
-** TODO regularize logging with timestamps
-** TODO change =set_fg= call to a command-line flag
+** DONE regularize logging with timestamps
+** DONE change =set_fg= call to a command-line flag
 ** BUG discrepancy between duration and number of counts from function generator
 * tag_server.capnp users
 ** TODO consistent default value and behavior for coincidence window size
 * timetag
-** BUG CXX: catch foreign exceptions in =Result<T>=
+** TODO CXX: catch foreign exceptions in =Result<T>=
+May not be possible since CXX can only catch them in certain conditions?
+The ~extern "C++"~ function must be declared to return =Result<T>=.
+Which throw under various conditions?
+- ~TimeTagger::open~: Initialization when no tagger is connected
+- 
