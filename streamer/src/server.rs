@@ -165,9 +165,9 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
             },
         };
 
-        info!("mask {:x?}", patmasks.clone());
-
         let sub_client = pry!(pry!(params.get()).get_subscriber());
+
+        info!("mask {:x?}", patmasks.clone());
 
         // Insert new subscriber
         self.subscribers.lock().subscribers.insert(
@@ -281,7 +281,6 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
     }
 }
 
-#[tracing::instrument]
 pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     // spawn timer thread
     let (sender_timer, receiver_timer) = flume::bounded(1);
@@ -311,6 +310,7 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
             let (sender_proc, receiver_proc) = flume::unbounded();
             std::thread::spawn(move || {
                 crate::controller::main(
+                    args,
                     receiver_timer,
                     receiver_event,
                     sender_raw,

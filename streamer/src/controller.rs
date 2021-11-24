@@ -6,24 +6,32 @@ use timetag::ffi::{new_time_tagger, FfiTag};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, span, warn, Instrument, Level};
 
-use crate::{Event, InputSetting};
+use crate::{CliArgs, Event, InputSetting};
 
 /// Create and manage time tagger, providing data to the server thread
 pub fn main(
+    args: CliArgs,
     receiver_timer: flume::Receiver<Event>,
     receiver_event: flume::Receiver<Event>,
     sender: flume::Sender<(Vec<Tag>, u64)>,
 ) -> Result<()> {
-    let span = span!(Level::WARN, "controller");
+    let span = span!(Level::INFO, "controller");
     let _enter = span.enter();
 
     let tt = new_time_tagger();
     tt.open();
+    info!("tagger connected");
     for ch in CHAN16 {
         tt.set_input_threshold(ch, 2.0);
     }
-    // TODO: reduce set_fg to a command-line debug flag
-    tt.set_fg(200_000, 100_000);
+    if args.fgperiod != 0 && args.fghigh != 0 {
+        tt.set_fg(args.fgperiod, args.fghigh);
+        info!(
+            "function generator enabled ({:e}, {:e}) sec",
+            5e-9 * f64::from(args.fgperiod),
+            5e-9 * f64::from(args.fghigh),
+        );
+    }
     tt.start_timetags();
     tt.freeze_single_counter();
     loop {
@@ -44,7 +52,9 @@ pub fn main(
 
                     let flags = tt.read_error_flags();
                     if flags != 0 {
-                        error!("tag {:?}: {:?}", &tags.get(0).and_then(|t| Some(t.time)).unwrap_or(0), error_text(flags));
+                        let span = span!(Level::WARN, "controller");
+                        let _enter = span.enter();
+                        warn!("tag {:?}: {:?}", &tags.get(0).and_then(|t| Some(t.time)).unwrap_or(0), error_text(flags));
                     }
 
                     sender.send((tags, dur))?;
