@@ -4,7 +4,7 @@
 
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
-use futures::AsyncReadExt;
+use futures::{AsyncReadExt, FutureExt};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
@@ -132,13 +132,13 @@ impl Client {
         tokio::task::LocalSet::new()
             .run_until(async move {
                 // Receives data from RPC calls and passes it to the app
-                let client_future = async move {
+                let client_future = async {
                     loop {
                         tokio::select! {
                             Some(msg) = self.receiver.recv() => {
                                 match msg {
                                     ClientMessage::GetData { respond_to } => {
-                                        let b = self.buffer.clone();
+                                        let b = &mut self.buffer;
                                         let mut buffer = b.lock();
                                         let _ = match (*buffer).is_empty() {
                                             true => respond_to.send(None),
@@ -178,15 +178,29 @@ impl Client {
                     rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
                 let sub = capnp_rpc::new_client(SubscriberImpl { sender: data_sender });
 
-                let mut pats = Vec::new();
+                let _ = tokio::task::spawn_local(Box::pin(rpc_system.map(|_| ())));
+
+                let mut pats: Vec<(u16, u32)> = Vec::new();
                 for s in config.singles {
-                    if let cfg::Single::Channel(ch) = s {
-                        pats.push(chans_to_mask(&[ch]));
+
+                    match s {
+                        cfg::Single::Channel(ch) => {
+                            pats.push((chans_to_mask(&[ch]), 0));
+                        },
+                        // Ignore recorded data
+                        cfg::Single::ChannelCounts(_) => {},
                     }
                 }
                 for c in config.coincidences {
-                    if let cfg::Coincidence::Channels((ch_a, ch_b)) = c {
-                        pats.push(chans_to_mask(&[ch_a, ch_b]));
+                    match c {
+                        cfg::Coincidence::Channels((ch_a, ch_b)) => {
+                            pats.push((chans_to_mask(&[ch_a, ch_b]), 0));
+                        },
+                        cfg::Coincidence::ChannelsWin((ch_a, ch_b, win)) => {
+                            pats.push((chans_to_mask(&[ch_a, ch_b]), win));
+                        },
+                        // Ignore recorded data
+                        cfg::Coincidence::ChannelsCounts(_) => {},
                     }
                 }
                 
@@ -194,19 +208,21 @@ impl Client {
                 let mut request = publisher.subscribe_request();
                 request.get().reborrow().set_subscriber(sub);
                 let sbdr = request.get().init_services();
-                let mut pbdr = sbdr.init_patmasks().init_bare(pats.len() as u32);
-                for (i, &pat) in pats.iter().enumerate() {
-                    pbdr.set(i as u32, pat);
+                let mut pbdr = sbdr.init_patmasks().init_windowed(pats.len() as u32);
+                for (i, &(pat, win)) in pats.iter().enumerate() {
+                    let mut lpbdr = pbdr.reborrow().get(i as u32);
+                    lpbdr.set_patmask(pat);
+                    lpbdr.set_window(win);
                 }
+                let request_future = request.send().promise;
 
                 // Need to make sure not to drop the returned subscription object.
-                futures::future::try_join3(
-                    rpc_system,
-                    request.send().promise,
-                    client_future
+                futures::future::try_join(
+                    request_future,
+                    client_future,
                 ).await?;
                 Ok(())
-            })
-            .await
+            }
+        ).await
     }
 }

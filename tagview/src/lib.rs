@@ -1,6 +1,7 @@
 pub mod app;
 pub mod client;
 pub mod save;
+pub mod settings_client;
 pub mod timer;
 pub mod ui;
 
@@ -23,5 +24,5 @@ pub struct Cli {
     pub addr: String,
     /// config file path
     #[argh(option)]
-    pub config: String,
+    pub config: Option<String>,
 }
