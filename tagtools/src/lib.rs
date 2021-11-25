@@ -26,3 +26,5 @@ where
 
 pub const TSTEP: f64 = 156.25e-12;
 pub const CHAN16: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+pub const THRESHOLD_MIN: f64 = -4.0;
+pub const THRESHOLD_MAX: f64 = 4.0;
