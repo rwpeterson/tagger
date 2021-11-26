@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use tagtools::{bit, pat, Tag};
 
+pub const WIN_DEFAULT: u32 = 1;
+
 #[allow(dead_code)]
 pub struct TagPattern {
     tagmask: u16,
@@ -54,7 +56,7 @@ pub fn count_patterns(tags: &[Tag], patmasks: HashSet<(u16, Option<u32>)>) -> Ha
                     &tags.clone(),
                     ch_a,
                     ch_b,
-                    win.unwrap_or(1).into(),
+                    win.unwrap_or(WIN_DEFAULT).into(),
                     0,
                 );
             }

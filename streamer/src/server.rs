@@ -19,6 +19,7 @@ use tagtools::bit;
 use tracing::{debug, error, info, span, warn, Instrument, Level};
 
 use crate::{Event, InputSetting, CliArgs};
+use crate::data::WIN_DEFAULT;
 use crate::processor;
 
 const FIRST_SEGMENT_WORDS: usize = 1 << 24; // 2^24 words = 128 MiB
@@ -381,7 +382,7 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
                                 pat_bdr.reborrow().set_patmask(*pat);
                                 pat_bdr.reborrow().set_duration(dur);
                                 pat_bdr.reborrow().set_count(ct);
-                                pat_bdr.reborrow().set_window(win.unwrap_or_default());
+                                pat_bdr.reborrow().set_window(win.unwrap_or(WIN_DEFAULT));
                             }
 
                             let mut request = subscriber.client.push_message_request();
