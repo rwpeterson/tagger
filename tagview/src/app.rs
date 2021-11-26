@@ -25,6 +25,8 @@ use tui::{
     widgets::ListState,
 };
 
+const INTERACTIVE_TIMEOUT: Duration = Duration::from_millis(1000);
+
 pub enum Event<I> {
     Input(I),
     Tick,
@@ -49,8 +51,6 @@ impl<'a> TabsState<'a> {
 
 #[derive(PartialEq)]
 pub enum SettingsMode {
-    ChannelSelect,
-    SettingSelect,
     Invert(Option<bool>),
     Delay(Option<u32>),
     Threshold(Option<f64>),
@@ -64,12 +64,10 @@ pub enum Grain {
 
 pub struct SettingsState {
     pub index: usize,
-    pub st_index: usize,
     pub channel_settings: Vec<RawSingleChannelState>,
     pub mode: SettingsMode,
     pub grain: Grain,
     pub ch_state: ListState,
-    pub st_state: ListState,
 }
 
 impl SettingsState {
@@ -81,42 +79,6 @@ impl SettingsState {
         let len = self.channel_settings.len();
         self.index = self.index.checked_sub(1).unwrap_or(len - 1);
     }
-    pub fn next_set(&mut self) {
-        let len = 3;
-        self.st_index = (self.st_index + 1) % len;
-    }
-    pub fn prev_set(&mut self) {
-        let len = 3;
-        self.st_index = self.st_index.checked_sub(1).unwrap_or(len - 1);
-    }
-    /*pub fn next_set(&mut self) {
-        match self.mode {
-            SettingsMode::Delay(_) => {
-                self.mode = SettingsMode::Threshold(None);
-            }
-            SettingsMode::Threshold(_) => {
-                self.mode = SettingsMode::Invert(None);
-            }
-            SettingsMode::Invert(_) => {
-                self.mode = SettingsMode::Delay(None);
-            }
-            _ => {}
-        }
-    }
-    pub fn prev_set(&mut self) {
-        match self.mode {
-            SettingsMode::Delay(_) => {
-                self.mode = SettingsMode::Invert(None);
-            }
-            SettingsMode::Threshold(_) => {
-                self.mode = SettingsMode::Delay(None);
-            }
-            SettingsMode::Invert(_) => {
-                self.mode = SettingsMode::Threshold(None);
-            }
-            _ => {}
-        }
-    }*/
     pub fn finer(&mut self) {
         match self.grain {
             Grain::Coarse => self.grain = Grain::Medium,
@@ -196,17 +158,11 @@ impl<'a> App<'a> {
                 if self.tabs.index == 1 && self.live_settings {
                     let state = self.settings_state.as_mut().unwrap();
                     match state.mode {
-                        SettingsMode::ChannelSelect => {
+                        SettingsMode::Delay(None)
+                        | SettingsMode::Threshold(None)
+                        | SettingsMode::Invert(None) => {
                             state.prev();
                             state.ch_state.select(Some(state.index));
-                        }
-                        SettingsMode::SettingSelect => {
-                            state.prev_set();
-                            state.st_state.select(Some(state.st_index));
-                        }
-                        SettingsMode::Delay(None) => {
-                            state.mode =
-                                SettingsMode::Delay(Some(state.channel_settings[state.index].del));
                         }
                         SettingsMode::Delay(Some(ref mut del)) => {
                             *del += match state.grain {
@@ -214,11 +170,7 @@ impl<'a> App<'a> {
                                 Grain::Medium => 10,
                                 Grain::Fine => 1,
                             };
-                        }
-                        SettingsMode::Threshold(None) => {
-                            state.mode = SettingsMode::Threshold(Some(
-                                state.channel_settings[state.index].thr,
-                            ));
+                            self.input_set();
                         }
                         SettingsMode::Threshold(Some(ref mut thr)) => {
                             *thr += match state.grain {
@@ -229,13 +181,11 @@ impl<'a> App<'a> {
                             if *thr > THRESHOLD_MAX {
                                 *thr = THRESHOLD_MAX;
                             }
-                        }
-                        SettingsMode::Invert(None) => {
-                            state.mode =
-                                SettingsMode::Invert(Some(state.channel_settings[state.index].inv));
+                            self.input_set();
                         }
                         SettingsMode::Invert(Some(ref mut inv)) => {
                             *inv = !*inv;
+                            self.input_set();
                         }
                     }
                 }
@@ -244,17 +194,11 @@ impl<'a> App<'a> {
                 if self.tabs.index == 1 && self.live_settings {
                     let state = self.settings_state.as_mut().unwrap();
                     match state.mode {
-                        SettingsMode::ChannelSelect => {
+                        SettingsMode::Delay(None)
+                        | SettingsMode::Threshold(None)
+                        | SettingsMode::Invert(None) => {
                             state.next();
                             state.ch_state.select(Some(state.index));
-                        }
-                        SettingsMode::SettingSelect => {
-                            state.next_set();
-                            state.st_state.select(Some(state.st_index));
-                        }
-                        SettingsMode::Delay(None) => {
-                            state.mode =
-                                SettingsMode::Delay(Some(state.channel_settings[state.index].del));
                         }
                         SettingsMode::Delay(Some(ref mut del)) => {
                             *del = del
@@ -264,11 +208,7 @@ impl<'a> App<'a> {
                                     Grain::Fine => 1,
                                 })
                                 .unwrap_or_default();
-                        }
-                        SettingsMode::Threshold(None) => {
-                            state.mode = SettingsMode::Threshold(Some(
-                                state.channel_settings[state.index].thr,
-                            ));
+                            self.input_set();
                         }
                         SettingsMode::Threshold(Some(ref mut thr)) => {
                             *thr -= match state.grain {
@@ -279,13 +219,11 @@ impl<'a> App<'a> {
                             if *thr < THRESHOLD_MIN {
                                 *thr = THRESHOLD_MIN;
                             }
-                        }
-                        SettingsMode::Invert(None) => {
-                            state.mode =
-                                SettingsMode::Invert(Some(state.channel_settings[state.index].inv));
+                            self.input_set();
                         }
                         SettingsMode::Invert(Some(ref mut inv)) => {
                             *inv = !*inv;
+                            self.input_set();
                         }
                     }
                 }
@@ -294,13 +232,11 @@ impl<'a> App<'a> {
                 if self.tabs.index == 1 && self.live_settings {
                     let state = self.settings_state.as_mut().unwrap();
                     match state.mode {
-                        SettingsMode::Delay(_)
-                        | SettingsMode::Threshold(_)
-                        | SettingsMode::Invert(_) => {
-                            state.mode = SettingsMode::SettingSelect;
+                        SettingsMode::Invert(_) => {
+                            state.mode = SettingsMode::Threshold(None);
                         }
-                        SettingsMode::SettingSelect => {
-                            state.mode = SettingsMode::ChannelSelect;
+                        SettingsMode::Threshold(_) => {
+                            state.mode = SettingsMode::Delay(None);
                         }
                         _ => {}
                     }
@@ -310,16 +246,11 @@ impl<'a> App<'a> {
                 if self.tabs.index == 1 && self.live_settings {
                     let state = self.settings_state.as_mut().unwrap();
                     match state.mode {
-                        SettingsMode::ChannelSelect => {
-                            state.mode = SettingsMode::SettingSelect;
+                        SettingsMode::Delay(_) => {
+                            state.mode = SettingsMode::Threshold(None);
                         }
-                        SettingsMode::SettingSelect => {
-                            state.mode = match state.st_index {
-                                0 => SettingsMode::Delay(None),
-                                1 => SettingsMode::Threshold(None),
-                                2 => SettingsMode::Invert(None),
-                                _ => SettingsMode::SettingSelect,
-                            };
+                        SettingsMode::Threshold(_) => {
+                            state.mode = SettingsMode::Invert(None);
                         }
                         _ => {}
                     }
@@ -329,8 +260,18 @@ impl<'a> App<'a> {
                 if self.tabs.index == 1 && self.live_settings {
                     let state = self.settings_state.as_mut().unwrap();
                     match state.mode {
-                        SettingsMode::Delay(_) | SettingsMode::Threshold(_) => {
-                            state.finer();
+                        SettingsMode::Delay(None) => {
+                            state.mode =
+                                SettingsMode::Delay(Some(state.channel_settings[state.index].del));
+                        }
+                        SettingsMode::Threshold(None) => {
+                            state.mode = SettingsMode::Threshold(Some(
+                                state.channel_settings[state.index].thr,
+                            ));
+                        }
+                        SettingsMode::Invert(None) => {
+                            state.mode =
+                                SettingsMode::Invert(Some(state.channel_settings[state.index].inv));
                         }
                         _ => {}
                     }
@@ -340,90 +281,37 @@ impl<'a> App<'a> {
                 if self.tabs.index == 1 && self.live_settings {
                     let state = self.settings_state.as_mut().unwrap();
                     match state.mode {
-                        SettingsMode::Delay(_) | SettingsMode::Threshold(_) => {
-                            state.coarser();
+                        SettingsMode::Delay(Some(_)) => {
+                            state.mode = SettingsMode::Delay(None);
+                        }
+                        SettingsMode::Threshold(Some(_)) => {
+                            state.mode = SettingsMode::Threshold(None);
+                        }
+                        SettingsMode::Invert(Some(_)) => {
+                            state.mode = SettingsMode::Invert(None);
                         }
                         _ => {}
                     }
                 }
             }
-            ' ' => {
+            'r' => {
                 if self.tabs.index == 1 && self.live_settings {
                     let state = self.settings_state.as_mut().unwrap();
-                    let index = state.index;
-                    let ch = state.channel_settings[index].ch;
-                    match state.mode {
-                        SettingsMode::Delay(Some(del)) => {
-                            let (respond_to, response) = flume::bounded(1);
-                            let _ = self.settings_handle.sender.send(SettingsMessage::Set {
-                                setting: RawChannelSetting::Delay((ch, del)),
-                                respond_to,
-                            });
-                            match response.recv_timeout(Duration::from_millis(1000)) {
-                                Ok(()) => {
-                                    state.mode = SettingsMode::Delay(None);
-                                    state.channel_settings[index].del = del;
-                                }
-                                Err(RecvTimeoutError::Timeout) => {
-                                    self.flags.insert(String::from("Set delay timeout"));
-                                }
-                                Err(RecvTimeoutError::Disconnected) => {
-                                    self.should_quit = true;
-                                }
-                            }
-                        }
-                        SettingsMode::Threshold(Some(thr)) => {
-                            let (respond_to, response) = flume::bounded(1);
-                            let _ = self.settings_handle.sender.send(SettingsMessage::Set {
-                                setting: RawChannelSetting::Threshold((ch, thr)),
-                                respond_to,
-                            });
-                            match response.recv_timeout(Duration::from_millis(1000)) {
-                                Ok(()) => {
-                                    state.mode = SettingsMode::Threshold(None);
-                                    state.channel_settings[index].thr = thr;
-                                }
-                                Err(RecvTimeoutError::Timeout) => {
-                                    self.flags.insert(String::from("Set threshold timeout"));
-                                }
-                                Err(RecvTimeoutError::Disconnected) => {
-                                    self.should_quit = true;
-                                }
-                            }
-                        }
-                        SettingsMode::Invert(Some(inv)) => {
-                            let (respond_to, response) = flume::bounded(1);
-                            let _ = self.settings_handle.sender.send(SettingsMessage::Set {
-                                setting: RawChannelSetting::Inversion((ch, inv)),
-                                respond_to,
-                            });
-                            match response.recv_timeout(Duration::from_millis(1000)) {
-                                Ok(()) => {
-                                    state.mode = SettingsMode::Invert(None);
-                                    state.channel_settings[index].inv = inv;
-                                }
-                                Err(RecvTimeoutError::Timeout) => {
-                                    self.flags.insert(String::from("Set inversion timeout"));
-                                }
-                                Err(RecvTimeoutError::Disconnected) => {
-                                    self.should_quit = true;
-                                }
-                            }
-                        }
+                    match state.grain {
+                        Grain::Medium => state.grain = Grain::Coarse,
+                        Grain::Fine => state.grain = Grain::Medium,
                         _ => {}
                     }
                 }
-            }
-            'r' => match self.save {
-                true => {
-                    self.save = false;
-                    self.save_handle
-                        .sender
-                        .send(save::SaveMessage::Reset)
-                        .unwrap();
-                }
-                false => {
-                    self.save = true;
+            },
+            'f' => {
+                if self.tabs.index == 1 && self.live_settings {
+                    let state = self.settings_state.as_mut().unwrap();
+                    match state.grain {
+                        Grain::Coarse => state.grain = Grain::Medium,
+                        Grain::Medium => state.grain = Grain::Fine,
+                        _ => {}
+                    }
                 }
             },
             'x' => {
@@ -458,12 +346,10 @@ impl<'a> App<'a> {
                     }
                     self.settings_state = Some(SettingsState {
                         index: 0,
-                        st_index: 0,
                         channel_settings,
-                        mode: SettingsMode::ChannelSelect,
+                        mode: SettingsMode::Delay(None),
                         grain: Grain::Fine,
                         ch_state: ListState::default(),
-                        st_state: ListState::default(),
                     });
                 }
             }
@@ -526,16 +412,76 @@ impl<'a> App<'a> {
                     }
                     self.settings_state = Some(SettingsState {
                         index: 0,
-                        st_index: 0,
                         channel_settings,
-                        mode: SettingsMode::ChannelSelect,
+                        mode: SettingsMode::Delay(None),
                         grain: Grain::Fine,
                         ch_state: ListState::default(),
-                        st_state: ListState::default(),
                     });
                 }
             }
             _ => {}
+        }
+    }
+
+    fn input_set(&mut self) {
+        if self.tabs.index == 1 && self.live_settings {
+            let state = self.settings_state.as_mut().unwrap();
+            let index = state.index;
+            let ch = state.channel_settings[index].ch;
+            let (respond_to, response) = flume::bounded(1);
+            let mut message = SettingsMessage::Set {
+                setting: RawChannelSetting::Inversion((1, false)),
+                respond_to: respond_to.clone(),
+            };
+            match state.mode {
+                SettingsMode::Delay(Some(del)) => {
+                    message = SettingsMessage::Set {
+                        setting: RawChannelSetting::Delay((ch, del)),
+                        respond_to,
+                    };
+                    state.channel_settings[index].del = del;
+                }
+                SettingsMode::Threshold(Some(thr)) => {
+                    message = SettingsMessage::Set {
+                        setting: RawChannelSetting::Threshold((ch, thr)),
+                        respond_to,
+                    };
+                    state.channel_settings[index].thr = thr;
+                }
+                SettingsMode::Invert(Some(inv)) => {
+                    message = SettingsMessage::Set {
+                        setting: RawChannelSetting::Inversion((ch, inv)),
+                        respond_to,
+                    };
+                    state.channel_settings[index].inv = inv;
+                }
+                _ => {}
+            }
+            let _ = self.settings_handle.sender.send(message);
+            match response.recv_timeout(INTERACTIVE_TIMEOUT) {
+                Ok(()) => {}
+                Err(RecvTimeoutError::Timeout) => {
+                    self.flags.insert(String::from("Set delay timeout"));
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    self.should_quit = true;
+                }
+            }
+        }
+    }
+
+    pub fn on_ctrlr(&mut self) {
+        match self.save {
+            true => {
+                self.save = false;
+                self.save_handle
+                    .sender
+                    .send(save::SaveMessage::Reset)
+                    .unwrap();
+            }
+            false => {
+                self.save = true;
+            }
         }
     }
 

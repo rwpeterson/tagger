@@ -1,4 +1,7 @@
+use tagtools::TSTEP;
+
 use crate::app::{App, SettingsMode};
+
 #[allow(unused_imports)]
 use tui::{
     backend::Backend,
@@ -8,7 +11,7 @@ use tui::{
     text::{Span, Spans},
     widgets::{
         Axis, BarChart, Block, Borders, Cell, Chart, Clear, Dataset, Gauge, LineGauge, List,
-        ListItem, Paragraph, Row, Sparkline, Table, Tabs, Wrap,
+        ListItem, ListState, Paragraph, Row, Sparkline, Table, Tabs, Wrap,
     },
     Frame,
 };
@@ -38,6 +41,23 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 }
 
 fn draw_settings_tab<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Length(1),
+                Constraint::Min(1),
+            ].as_ref()
+        )
+        .split(area);
+    let help = Paragraph::new(
+        vec![Spans::from(Span::raw("wasd navigate  e/q enter/quit setting  w/s +/- setting  r/f +/- step size"))]
+    );
+    f.render_widget(help, chunks[0]);
+    draw_settings_tab_body(f, app, chunks[1]);
+}
+
+fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
     if app.live_settings == false {
         let text = vec![
             Spans::from("User input required:"),
@@ -54,48 +74,135 @@ fn draw_settings_tab<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
             .direction(Direction::Horizontal)
             .constraints(
                 [
+                    Constraint::Length(14),
                     Constraint::Length(13),
-                    Constraint::Length(12),
+                    Constraint::Length(9),
+                    Constraint::Length(3),
                     Constraint::Min(1),
                 ]
                 .as_ref(),
             )
             .split(area);
         let state = app.settings_state.as_mut().unwrap();
-        let channel_items = state
+        let channel_items: Vec<ListItem> = state
             .channel_settings
             .iter()
             .map(|rs| ListItem::new(format!("Channel {: >2}", rs.ch)))
-            .collect::<Vec<ListItem>>();
+            .collect();
         let channel_list = List::new(channel_items)
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Gray))
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD))
-            .highlight_symbol(if state.mode == SettingsMode::ChannelSelect {
-                ">"
-            } else {
-                " "
-            });
+            .highlight_style(Style::default().add_modifier(Modifier::BOLD))
+            .highlight_symbol(">");
         f.render_stateful_widget(channel_list, chunks[0], &mut state.ch_state);
-        let settings_items = vec![
-            ListItem::new("Delay"),
-            ListItem::new("Threshold"),
-            ListItem::new("Invert"),
-        ];
-        let settings_list = List::new(settings_items)
+        let delay_items: Vec<ListItem> = state
+            .channel_settings
+            .iter()
+            .map(|rs| {
+                let mut s = numfmt(rs.del as f64 * TSTEP, 2);
+                s.push('s');
+                ListItem::new(s)
+            })
+            .collect();
+        let delay_list = List::new(delay_items)
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Gray))
-            .highlight_style(Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD))
-            .highlight_symbol(if state.mode == SettingsMode::SettingSelect {
-                ">"
-            } else {
-                " "
+            .highlight_style(match state.mode {
+                SettingsMode::Delay(None) => {
+                    Style::default()
+                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                }
+                SettingsMode::Delay(Some(_)) => {
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                }
+                _ => {
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                }
             });
-        if state.mode != SettingsMode::ChannelSelect {
-            f.render_stateful_widget(settings_list, chunks[1], &mut state.st_state);
-        } else {
-            f.render_widget(Clear, chunks[1]);
-        }
+        f.render_stateful_widget(delay_list, chunks[1], &mut state.ch_state);
+        let threshold_items: Vec<ListItem> = state
+            .channel_settings
+            .iter()
+            .map(|rs| {
+                let mut s = numfmt(rs.thr, 3);
+                s.push('V');
+                ListItem::new(s)
+            })
+            .collect();
+        let threshold_list = List::new(threshold_items)
+            .block(Block::default().borders(Borders::ALL))
+            .style(Style::default().fg(Color::Gray))
+            .highlight_style(match state.mode {
+                SettingsMode::Threshold(None) => {
+                    Style::default()
+                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                }
+                SettingsMode::Threshold(Some(_)) => {
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                }
+                _ => {
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                }
+            });
+        f.render_stateful_widget(threshold_list, chunks[2], &mut state.ch_state);
+        let inversion_items: Vec<ListItem> = state
+        .channel_settings
+        .iter()
+        .map(|rs| {
+            let s = match rs.inv {
+                true => String::from("-"),
+                false => String::from("+"),
+            };
+            ListItem::new(s)
+        })
+        .collect();
+        let inversion_list = List::new(inversion_items)
+            .block(Block::default().borders(Borders::ALL))
+            .style(Style::default().fg(Color::Gray))
+            .highlight_style(match state.mode {
+                SettingsMode::Invert(None) => {
+                    Style::default()
+                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                }
+                SettingsMode::Invert(Some(_)) => {
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                }
+                _ => {
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                }
+            });
+        f.render_stateful_widget(inversion_list, chunks[3], &mut state.ch_state);
+        
+        let pats = app.pats.lock();
+        let mut coincvec = pats
+            .iter()
+            .filter(|(m, _)| m.count_ones() == 2)
+            .collect::<Vec<_>>();
+        coincvec.sort();
+        let coinc_items: Vec<ListItem> = coincvec
+            .iter()
+            .map(|(&m, &ct)| {
+                let mut bi = bit_iter::BitIter::from(m);
+                let ch_b = bi.next().unwrap() + 1;
+                let ch_a = bi.next().unwrap() + 1;
+                let s = format!("{0}-{1}: {2}", ch_b, ch_a, ct);
+                ListItem::new(s)
+            })
+            .collect();
+        let mut x = ListState::default();
+        let coinc_list = List::new(coinc_items)
+            .block(Block::default().borders(Borders::ALL))
+            .style(Style::default().fg(Color::Gray));
+            f.render_stateful_widget(coinc_list, chunks[4], &mut x)
     }
 }
 
@@ -127,7 +234,7 @@ fn draw_titlebar<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
             "clear error flags",
             Style::default().add_modifier(Modifier::DIM),
         ),
-        Span::raw("  r "),
+        Span::raw("  Ctrl+R "),
         Span::styled("record tags", Style::default().add_modifier(Modifier::DIM)),
         Span::raw("  ←/→ "),
         Span::styled("cycle tabs", Style::default().add_modifier(Modifier::DIM)),
@@ -341,6 +448,7 @@ pub fn sizefmt(bytes: usize) -> String {
     return space;
 }
 
+// HACK: replace this with a real float formatting library
 /// Human-readable string encoding size in p, n, µ, m, _, k, M, G, T.
 pub fn numfmt(num: f64, dec: usize) -> String {
     match num.is_normal() {

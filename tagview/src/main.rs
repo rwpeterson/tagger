@@ -132,6 +132,12 @@ fn main() -> Result<()> {
                     break;
                 }
                 KeyEvent {
+                    code: KeyCode::Char('r'),
+                    modifiers: KeyModifiers::CONTROL,
+                } => {
+                    app.on_ctrlr();
+                }
+                KeyEvent {
                     code: KeyCode::Char(char),
                     modifiers: _,
                 } => {
