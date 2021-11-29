@@ -1197,6 +1197,7 @@ name = "tagtools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "argh",
  "bencher",
  "bit-iter",
  "capnp",
