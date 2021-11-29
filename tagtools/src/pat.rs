@@ -22,7 +22,8 @@ pub fn coincidence(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> u6
     let mut count: usize = 0;
 
     // Note below that tags are binned into windows when pushed onto the buffer
-    let mut buffer: VecDeque<Tag> = VecDeque::with_capacity(delay_win as usize);
+    let mut buffer: VecDeque<Tag> =
+        VecDeque::with_capacity(i64::max(delay_win.saturating_abs(), 2) as usize);
 
     // Seed the buffer with one tag
     if let Some(&t) = tag_iter.next() {
@@ -190,7 +191,8 @@ pub fn tag_histogram(
     let mut tag_iter = tags.iter().peekable();
 
     // Histogram stores bins of a given window size, not the time resolution
-    let mut histogram: Vec<Vec<Tag>> = vec![Vec::new(); ((max_delay - min_delay) / win) as usize + 1];
+    let mut histogram: Vec<Vec<Tag>> =
+        vec![Vec::new(); ((max_delay - min_delay) / win) as usize + 1];
 
     // Note below that tags are binned into windows when pushed onto the buffer
     let mut buffer: VecDeque<Tag> =
@@ -269,14 +271,7 @@ pub fn tag_histogram(
 /// Hanbury Brown-Twiss experiment. Window, channels, and delay range specified
 /// as in coincidence_histogram, as this is essentially a normalization of that
 /// histogram to the singles rates and window size.
-pub fn g2(
-    tags: &[Tag],
-    win: i64,
-    ch_a: u8,
-    ch_b: u8,
-    min_delay: i64,
-    max_delay: i64,
-) -> Vec<f64> {
+pub fn g2(tags: &[Tag], win: i64, ch_a: u8, ch_b: u8, min_delay: i64, max_delay: i64) -> Vec<f64> {
     let total_time = (tags.last().unwrap().time - tags.first().unwrap().time) as f64;
     let singles_a = singles(tags, ch_a) as f64;
     let singles_b = singles(tags, ch_b) as f64;
