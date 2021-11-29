@@ -1226,6 +1226,7 @@ dependencies = [
  "futures",
  "git-version",
  "parking_lot",
+ "ryu",
  "serde",
  "serde_json",
  "tagger_capnp",

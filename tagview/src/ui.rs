@@ -1,6 +1,6 @@
 use tagtools::TSTEP;
 
-use crate::app::{App, SettingsMode};
+use crate::app::{App, SettingsMode, Grain};
 
 #[allow(unused_imports)]
 use tui::{
@@ -43,17 +43,37 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 fn draw_settings_tab<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Length(1),
-                Constraint::Min(1),
-            ].as_ref()
-        )
+        .constraints([Constraint::Length(1), Constraint::Min(1)].as_ref())
         .split(area);
-    let help = Paragraph::new(
-        vec![Spans::from(Span::raw("wasd navigate  e/q enter/quit setting  w/s +/- setting  r/f +/- step size"))]
-    );
-    f.render_widget(help, chunks[0]);
+    let mut help = None;
+    if app.live_settings {
+        let state = app.settings_state.as_mut().unwrap();
+
+        help = Some(Paragraph::new(vec![Spans::from(
+            vec![
+                Span::raw("  wasd "),
+                Span::styled("navigate settings", Style::default().add_modifier(Modifier::DIM)),
+                Span::raw("  e/q "),
+                Span::styled("enter/leave setting", Style::default().add_modifier(Modifier::DIM)),
+                Span::raw(" w/s "),
+                Span::styled("change setting", Style::default().add_modifier(Modifier::DIM)),
+                Span::raw(" r/f "),
+                Span::styled("change step size [", Style::default().add_modifier(Modifier::DIM)),
+                match state.grain {
+                    Grain::Fine => Span::styled("▓", Style::default().fg(Color::LightCyan)),
+                    Grain::Medium => Span::styled("▓▓", Style::default().fg(Color::LightCyan)),
+                    Grain::Coarse => Span::styled("▓▓▓", Style::default().fg(Color::LightCyan)),
+                },
+                match state.grain {
+                    Grain::Fine => Span::raw("░░"),
+                    Grain::Medium => Span::raw("░"),
+                    Grain::Coarse => Span::raw(""),
+                },
+                Span::styled("]", Style::default().add_modifier(Modifier::DIM)),
+            ]
+        )]));
+    }
+    f.render_widget(help.unwrap_or_else(|| Paragraph::new(Span::raw(""))), chunks[0]);
     draw_settings_tab_body(f, app, chunks[1]);
 }
 
@@ -109,18 +129,12 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
             .style(Style::default().fg(Color::Gray))
             .highlight_style(match state.mode {
                 SettingsMode::Delay(None) => {
-                    Style::default()
-                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                    Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
                 }
-                SettingsMode::Delay(Some(_)) => {
-                    Style::default()
-                        .fg(Color::Green)
-                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
-                }
-                _ => {
-                    Style::default()
-                        .add_modifier(Modifier::BOLD)
-                }
+                SettingsMode::Delay(Some(_)) => Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::REVERSED | Modifier::BOLD),
+                _ => Style::default().add_modifier(Modifier::BOLD),
             });
         f.render_stateful_widget(delay_list, chunks[1], &mut state.ch_state);
         let threshold_items: Vec<ListItem> = state
@@ -137,51 +151,39 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
             .style(Style::default().fg(Color::Gray))
             .highlight_style(match state.mode {
                 SettingsMode::Threshold(None) => {
-                    Style::default()
-                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                    Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
                 }
-                SettingsMode::Threshold(Some(_)) => {
-                    Style::default()
-                        .fg(Color::Green)
-                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
-                }
-                _ => {
-                    Style::default()
-                        .add_modifier(Modifier::BOLD)
-                }
+                SettingsMode::Threshold(Some(_)) => Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::REVERSED | Modifier::BOLD),
+                _ => Style::default().add_modifier(Modifier::BOLD),
             });
         f.render_stateful_widget(threshold_list, chunks[2], &mut state.ch_state);
         let inversion_items: Vec<ListItem> = state
-        .channel_settings
-        .iter()
-        .map(|rs| {
-            let s = match rs.inv {
-                true => String::from("-"),
-                false => String::from("+"),
-            };
-            ListItem::new(s)
-        })
-        .collect();
+            .channel_settings
+            .iter()
+            .map(|rs| {
+                let s = match rs.inv {
+                    true => String::from("-"),
+                    false => String::from("+"),
+                };
+                ListItem::new(s)
+            })
+            .collect();
         let inversion_list = List::new(inversion_items)
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Gray))
             .highlight_style(match state.mode {
                 SettingsMode::Invert(None) => {
-                    Style::default()
-                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                    Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
                 }
-                SettingsMode::Invert(Some(_)) => {
-                    Style::default()
-                        .fg(Color::Green)
-                        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
-                }
-                _ => {
-                    Style::default()
-                        .add_modifier(Modifier::BOLD)
-                }
+                SettingsMode::Invert(Some(_)) => Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::REVERSED | Modifier::BOLD),
+                _ => Style::default().add_modifier(Modifier::BOLD),
             });
         f.render_stateful_widget(inversion_list, chunks[3], &mut state.ch_state);
-        
+
         let pats = app.pats.lock();
         let mut coincvec = pats
             .iter()
@@ -202,7 +204,7 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
         let coinc_list = List::new(coinc_items)
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Gray));
-            f.render_stateful_widget(coinc_list, chunks[4], &mut x)
+        f.render_stateful_widget(coinc_list, chunks[4], &mut x)
     }
 }
 
@@ -448,35 +450,20 @@ pub fn sizefmt(bytes: usize) -> String {
     return space;
 }
 
-// HACK: replace this with a real float formatting library
-/// Human-readable string encoding size in p, n, µ, m, _, k, M, G, T.
 pub fn numfmt(num: f64, dec: usize) -> String {
-    match num.is_normal() {
-        false => return format!("{:>7.*}", dec, num),
-        true => {
-            let sgn = num.signum();
-            let num = num.abs();
-            let oom = num.log10().floor() as i32;
-            let pfx = oom as i32 / 3 * 3;
-            let value = num / 10f64.powi(pfx);
-            let unit = match pfx {
-                -12 => Some("p"),
-                -9 => Some("n"),
-                -6 => Some("µ"),
-                -3 => Some("m"),
-                0 => None,
-                3 => Some("k"),
-                6 => Some("M"),
-                9 => Some("G"),
-                12 => Some("T"),
-                15 => Some("P"),
-                _ => None,
-            };
-            let repr = match unit {
-                Some(p) => format!("{:>7.*} {}", dec, sgn * value, p),
-                None => format!("{:>7.*}", dec, value),
-            };
-            return repr;
-        }
+    let mut buffer = ryu::Buffer::new();
+    let raw = buffer.format(num);
+    if raw.contains("e") {
+        // num < 1e-5 || num >= 1e16
+        let eidx = raw.find('e').unwrap();
+        let (mantissa, exponent) = raw.split_at(eidx);
+        let mut mantissa = mantissa.to_string();
+        mantissa.truncate(dec + 2);
+        return format!("{}{}", mantissa, exponent);
+    } else {
+        let pidx = raw.find('.').unwrap();
+        let mut truncated = raw.to_string();
+        truncated.truncate(pidx + dec + 1);
+        return truncated;
     }
 }
