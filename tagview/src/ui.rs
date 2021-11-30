@@ -373,13 +373,13 @@ fn draw_coincidences<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
                 let mut bi = bit_iter::BitIter::from(m);
                 let ch_b = bi.next().unwrap() + 1;
                 let ch_a = bi.next().unwrap() + 1;
-                let rate = ct as f64 / (dur as f64 / 5e-9);
+                let rate = ct as f64 / (dur as f64 * 5e-9);
                 let text = Paragraph::new(Spans::from(vec![
                     Span::styled(
                         format!("{0}-{1}", ch_b, ch_a),
                         Style::default().add_modifier(Modifier::BOLD | Modifier::DIM),
                     ),
-                    Span::styled(format!("{:>7.0}", rate), Style::default()),
+                    Span::styled(numfmt(rate, 0), Style::default()),
                 ]));
                 f.render_widget(text, elem);
             }
@@ -463,7 +463,8 @@ pub fn numfmt(num: f64, dec: usize) -> String {
     } else {
         let pidx = raw.find('.').unwrap();
         let mut truncated = raw.to_string();
-        truncated.truncate(pidx + dec + 1);
+        let d = if dec > 0 { dec + 1 } else { 0 };
+        truncated.truncate(pidx + d);
         return truncated;
     }
 }
