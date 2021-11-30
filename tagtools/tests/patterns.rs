@@ -14,7 +14,7 @@ fn singles() {
 fn coincidence_histogram() {
     let tags = common::load_test_data();
     let proof_histogram = common::load_coincidence_histogram();
-    let histogram = pat::coincidence_histogram(&tags, 1, 3, 15, -64, 64);
+    let histogram = pat::coincidence_histogram(&tags, 3, 15, 1, -64, 64);
 
     assert_eq!(proof_histogram.len(), histogram.len());
     for (i, proof) in proof_histogram.into_iter().enumerate() {
@@ -34,7 +34,7 @@ fn coincidence_histogram() {
 fn g2_histogram() {
     let tags = common::load_test_data();
     let proof_g2 = common::load_g2_histogram();
-    let g2 = pat::g2(&tags, 1, 3, 15, -64, 64);
+    let g2 = pat::g2(&tags, 3, 15, 1, -64, 64);
     assert_eq!(proof_g2.len(), g2.len());
     for (i, proof) in proof_g2.into_iter().enumerate() {
         // skip the first and last bins since they are zero in the reference calculation

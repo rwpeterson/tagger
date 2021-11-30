@@ -40,9 +40,9 @@ fn main() -> Result<()> {
 
     let histogram = pat::coincidence_histogram(
         &tags,
-        config.win,
         config.ch_a,
         config.ch_b,
+        config.win,
         config.min,
         config.max,
     );

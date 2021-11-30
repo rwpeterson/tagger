@@ -27,9 +27,9 @@ pub fn coincidence(
 /// win, for delays inclusive of min_delay to max_delay.
 pub fn coincidence_histogram(
     tags: &[Tag],
-    win: i64,
     ch_a: u8,
     ch_b: u8,
+    win: i64,
     min_delay: i64,
     max_delay: i64,
 ) -> Vec<u64> {
@@ -205,11 +205,11 @@ pub fn tag_histogram(
 /// Hanbury Brown-Twiss experiment. Window, channels, and delay range specified
 /// as in coincidence_histogram, as this is essentially a normalization of that
 /// histogram to the singles rates and window size.
-pub fn g2(tags: &[Tag], win: i64, ch_a: u8, ch_b: u8, min_delay: i64, max_delay: i64) -> Vec<f64> {
+pub fn g2(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, min_delay: i64, max_delay: i64) -> Vec<f64> {
     let total_time = (tags.last().unwrap().time - tags.first().unwrap().time) as f64;
     let singles_a = singles(tags, ch_a) as f64;
     let singles_b = singles(tags, ch_b) as f64;
-    let g2_histogram = coincidence_histogram(tags, win, ch_a, ch_b, min_delay, max_delay)
+    let g2_histogram = coincidence_histogram(tags, ch_a, ch_b, win, min_delay, max_delay)
         .iter()
         .map(|&b| (b as f64) * total_time / win as f64 / singles_a / singles_b)
         .collect::<Vec<f64>>();
