@@ -12,81 +12,15 @@ pub fn singles(tags: &[Tag], ch: u8) -> u64 {
 }
 
 /// Count coincidences at a fixed delay
-pub fn coincidence(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> u64 {
-    // Ensure delay is commensurate with the windowing we do when pushing into
-    // the deque later
-    let delay_win = delay / win;
-
-    let mut tag_iter = tags.iter().peekable();
-
-    let mut count: usize = 0;
-
-    // Note below that tags are binned into windows when pushed onto the buffer
-    let mut buffer: VecDeque<Tag> =
-        VecDeque::with_capacity(i64::max(delay_win.saturating_abs(), 2) as usize);
-
-    // Seed the buffer with one tag
-    if let Some(&t) = tag_iter.next() {
-        buffer.push_back(Tag {
-            time: t.time / win,
-            channel: t.channel,
-        })
-    }
-
-    // We only look at a fixed delay between ch_a and ch_b
-    while !buffer.is_empty() {
-        if let Some(t0) = buffer.pop_front() {
-            // Fill buffer
-            buffer.extend(
-                tag_iter
-                    .peeking_take_while(|&&t| t.time - t0.time <= delay_win)
-                    // Bin tag into win
-                    .map(|&t| Tag {
-                        time: t.time / win,
-                        channel: t.channel,
-                    }),
-            );
-            // Check if there is a tag at positive delay
-            if !delay_win.is_negative() && t0.channel == ch_a {
-                if let Some(_) = buffer
-                    .iter()
-                    .filter(|&&t| t.channel == ch_b)
-                    .peekable()
-                    .peeking_take_while(|&&t| t.time - t0.time <= delay_win)
-                    .filter(|&&t| t.time - t0.time == delay_win)
-                    // Iter should be empty if no matching tag
-                    .peekable()
-                    .peek()
-                {
-                    count += 1;
-                }
-            // Else check if there is a tag at negative delay
-            } else if delay_win.is_negative() && t0.channel == ch_b {
-                if let Some(_) = buffer
-                    .iter()
-                    .filter(|&&t| t.channel == ch_a)
-                    .peekable()
-                    .peeking_take_while(|&&t| t.time - t0.time <= delay_win)
-                    .filter(|&&t| t.time - t0.time == delay_win)
-                    // Iter should be empty if no matching tag
-                    .peekable()
-                    .peek()
-                {
-                    count += 1;
-                }
-            }
-        }
-        // Don't leave buffer empty for the next loop
-        if buffer.is_empty() {
-            if let Some(&t) = tag_iter.next() {
-                buffer.push_back(Tag {
-                    time: t.time / win,
-                    channel: t.channel,
-                })
-            }
-        }
-    }
-    return count as u64;
+pub fn coincidence(
+    tags: &[Tag],
+    ch_a: u8,
+    ch_b: u8,
+    win: i64,
+    delay: i64,
+) -> u64 {
+    let hist = coincidence_histogram(tags, ch_a, ch_b, win, delay, delay);
+    return hist[0]
 }
 
 /// Calculate the raw coincidence histogram between ch_a, ch_b in a given
