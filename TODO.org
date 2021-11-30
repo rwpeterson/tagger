@@ -15,9 +15,9 @@
 ** DONE human-format json output
 * tagtools
 ** BUG ~pat::coincidence_window~ does not work with =win != 1=
-** BUG ~pat::coincidence~ does not work with =delay <= 0=
+** DONE ~pat::coincidence~ does not work with =delay <= 0=
 Reimplement from ~coincidence_window~
-** BUG ~pat::coincidence~ and ~pat::coincidence_window~ have different APIs
+** DONE ~pat::coincidence~ and ~pat::coincidence_window~ have different APIs
 * streamer
 ** DONE regularize logging with timestamps
 ** DONE change =set_fg= call to a command-line flag
@@ -27,6 +27,8 @@ Reimplement from ~coincidence_window~
 *** DONE streamer
 *** TODO tagview
 *** TODO tagsave
+* tcat
+** TODO split off into own crate
 * timetag
 ** TODO CXX: catch foreign exceptions in =Result<T>=
 May not be possible since CXX can only catch them in certain conditions?
