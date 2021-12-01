@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tagtools::cfg::Single;
 
-use tagtools::{bit, cfg, Tag, THRESHOLD_MAX, THRESHOLD_MIN};
+use tagtools::{bit::BitOps, cfg, Tag, THRESHOLD_MAX, THRESHOLD_MIN};
 
 use crate::client::{ClientHandle, ClientMessage};
 use crate::save;
@@ -329,7 +329,7 @@ impl<'a> App<'a> {
                                 if let Single::Channel(ch) = s {
                                     channel_settings.push(RawSingleChannelState {
                                         ch: *ch,
-                                        inv: bit::checkbit16(tagger_state.invm, ch - 1),
+                                        inv: tagger_state.invm.check(*ch as usize - 1),
                                         del: tagger_state.dels[(*ch - 1) as usize],
                                         thr: tagger_state.thrs[(*ch - 1) as usize],
                                     });
@@ -396,7 +396,7 @@ impl<'a> App<'a> {
                                 let ch = cs.channel;
                                 channel_settings.push(RawSingleChannelState {
                                     ch,
-                                    inv: bit::checkbit16(tagger_state.invm, ch - 1),
+                                    inv: tagger_state.invm.check(ch as usize - 1),
                                     del: tagger_state.dels[(ch - 1) as usize],
                                     thr: tagger_state.thrs[(ch - 1) as usize],
                                 });

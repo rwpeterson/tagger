@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{
     input_settings, publisher, service_pub, service_sub, subscriber, subscription,
 };
-use tagtools::bit;
+use tagtools::bit::BitOps;
 
 #[allow(unused_imports)]
 use tracing::{debug, error, info, span, warn, Instrument, Level};
@@ -214,7 +214,7 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                     inv,
                 );
                 let mut invmask = self.invmask.write();
-                bit::changebit16(&mut *invmask, ch, inv);
+                invmask.change(ch as usize, inv);
                 self.tx_controller.send(
                     Event::Set(InputSetting::InversionMask(*invmask))
                 ).unwrap();
