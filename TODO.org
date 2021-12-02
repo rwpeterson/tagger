@@ -1,7 +1,7 @@
 * overall
 ** DONE version and commit information bundled from git
 ** DONE packaging and release procedure using cargo-xtask
-** BUG coincidences are not registering
+** DONE coincidences are not registering
 ** DONE bump vendor version to v2.35
 ** TODO bump to 1.0
 * tagview
@@ -29,6 +29,8 @@ Reimplement from ~coincidence_window~
 *** TODO tagsave
 * tcat
 ** TODO split off into own crate
+Has argparse libs, etc. in dependencies
+Can create a pure Rust impl for crappy OSs
 * timetag
 ** TODO CXX: catch foreign exceptions in =Result<T>=
 May not be possible since CXX can only catch them in certain conditions?
