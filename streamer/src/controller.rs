@@ -28,6 +28,7 @@ pub fn main(
     info!("tagger connected");
     if args.calibrate {
         tt.calibrate();
+        info!("calibration complete")
     }
     for ch in CHAN16 {
         tt.set_input_threshold(ch, 2.0);
@@ -41,11 +42,12 @@ pub fn main(
         );
     }
     tt.start_timetags();
+    info!("timetag acquisition start");
     tt.freeze_single_counter();
     loop {
-        let status: Result<()> = flume::Selector::new()
+        let should_break: Result<bool> = flume::Selector::new()
             .recv(&receiver_timer, |r| match r {
-                Err(e) => bail!(e),
+                Err(_) => return Ok(true),
                 Ok(_) => {
                     let dur = tt.freeze_single_counter();
                     let tags: Vec<Tag> = tt
@@ -66,12 +68,12 @@ pub fn main(
                     }
 
                     sender.send((tags, dur))?;
-                    Ok(())
+                    Ok(false)
                 }
             })
             .recv(&receiver_event, |r| {
                 match r {
-                    Err(e) => bail!(e),
+                    Err(_) => return Ok(true),
                     Ok(Event::Tick) => {}
                     Ok(Event::Set(s)) => match s {
                         InputSetting::InversionMask(m) => tt.set_inversion_mask(m),
@@ -79,14 +81,18 @@ pub fn main(
                         InputSetting::Threshold((ch, th)) => tt.set_input_threshold(ch, th),
                     },
                 }
-                Ok(())
+                Ok(false)
             })
             .wait();
-        if let Err(_) = status {
-            break;
+        match should_break {
+            Ok(true) => break,
+            Ok(false) => continue,
+            Err(_) => break,
         }
     }
     tt.stop_timetags();
+    info!("timetag acquisition stop");
     tt.close();
+    info!("tagger connection closed");
     Ok(())
 }

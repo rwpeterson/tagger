@@ -18,9 +18,9 @@ use tagtools::bit::BitOps;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, span, warn, Instrument, Level};
 
-use crate::{Event, InputSetting, CliArgs};
 use crate::data::WIN_DEFAULT;
 use crate::processor;
+use crate::{CliArgs, Event, InputSetting};
 
 const FIRST_SEGMENT_WORDS: usize = 1 << 24; // 2^24 words = 128 MiB
 
@@ -102,11 +102,11 @@ impl PublisherImpl {
         (
             PublisherImpl {
                 next_id: 0,
-                subscribers:  subscribers.clone(),
-                cur_tagmask:  cur_tagmask.clone(),
+                subscribers: subscribers.clone(),
+                cur_tagmask: cur_tagmask.clone(),
                 cur_patmasks: cur_patmasks.clone(),
-                invmask:    Arc::new(RwLock::new(0)),
-                delays:     Arc::new(RwLock::new(vec![0; 16])),
+                invmask: Arc::new(RwLock::new(0)),
+                delays: Arc::new(RwLock::new(vec![0; 16])),
                 thresholds: Arc::new(RwLock::new(vec![2.0; 16])),
                 tx_controller,
             },
@@ -151,19 +151,22 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                 let rdr = pry!(b);
                 let p = rdr.iter().map(|p| (p, None)).collect();
                 p
-            },
+            }
             p::Windowed(w) => {
                 let rdr = pry!(w);
-                let p = rdr.iter().map(|lrdr| {
-                    let pm = lrdr.reborrow().get_patmask();
-                    let wd = lrdr.reborrow().get_window();
-                    match wd {
-                        0 => (pm, None),
-                        w => (pm, Some(w)),
-                    }
-                }).collect();
+                let p = rdr
+                    .iter()
+                    .map(|lrdr| {
+                        let pm = lrdr.reborrow().get_patmask();
+                        let wd = lrdr.reborrow().get_window();
+                        match wd {
+                            0 => (pm, None),
+                            w => (pm, Some(w)),
+                        }
+                    })
+                    .collect();
                 p
-            },
+            }
         };
 
         let sub_client = pry!(pry!(params.get()).get_subscriber());
@@ -208,47 +211,35 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                 let rdr = pry!(r);
                 let ch = rdr.get_ch();
                 let inv = rdr.get_inv();
-                info!(
-                    "channel {}, inversion {}",
-                    ch,
-                    inv,
-                );
+                info!("channel {}, inversion {}", ch, inv,);
                 let mut invmask = self.invmask.write();
                 invmask.change(ch as usize, inv);
-                self.tx_controller.send(
-                    Event::Set(InputSetting::InversionMask(*invmask))
-                ).unwrap();
-            },
+                self.tx_controller
+                    .send(Event::Set(InputSetting::InversionMask(*invmask)))
+                    .unwrap();
+            }
             w::Delay(r) => {
                 let rdr = pry!(r);
                 let mut delays = self.delays.write();
                 let ch = rdr.get_ch();
                 let del = rdr.get_del();
-                info!(
-                    "channel {}, delay {}",
-                    ch,
-                    del,
-                );
+                info!("channel {}, delay {}", ch, del,);
                 delays[(ch - 1) as usize] = del;
-                self.tx_controller.send(
-                    Event::Set(InputSetting::Delay((ch, del)))
-                ).unwrap();
-            },
+                self.tx_controller
+                    .send(Event::Set(InputSetting::Delay((ch, del))))
+                    .unwrap();
+            }
             w::Threshold(r) => {
                 let rdr = pry!(r);
                 let mut thresholds = self.thresholds.write();
                 let ch = rdr.get_ch();
                 let th = rdr.get_th();
-                info!(
-                    "channel {}, threshold {} V",
-                    ch,
-                    th,
-                );
+                info!("channel {}, threshold {} V", ch, th,);
                 thresholds[(ch - 1) as usize] = th;
-                self.tx_controller.send(
-                    Event::Set(InputSetting::Threshold((ch, th)))
-                ).unwrap();
-            },
+                self.tx_controller
+                    .send(Event::Set(InputSetting::Threshold((ch, th))))
+                    .unwrap();
+            }
         }
         Promise::ok(())
     }
@@ -256,7 +247,7 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
     fn get_inputs(
         &mut self,
         _params: publisher::GetInputsParams<::capnp::any_pointer::Owned>,
-        mut results: publisher::GetInputsResults<::capnp::any_pointer::Owned>
+        mut results: publisher::GetInputsResults<::capnp::any_pointer::Owned>,
     ) -> capnp::capability::Promise<(), capnp::Error> {
         let span = span!(Level::INFO, "get_inputs");
         let _enter = span.enter();
@@ -275,7 +266,7 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
         for (i, &t) in thresholds.iter().enumerate() {
             t_bdr.set(i as u32, t);
         }
-        
+
         info!("processed");
 
         Promise::ok(())
@@ -283,12 +274,16 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
 }
 
 pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
+    // broadcast channel for shutdown
+    let (shutdown_sender, mut shutdown_receiver) = tokio::sync::broadcast::channel::<()>(1);
+
     // spawn timer thread
     let (sender_timer, receiver_timer) = flume::bounded(1);
     let (sender_event, receiver_event) = flume::unbounded();
     crate::timer::main(sender_timer.clone())?;
 
-    let addr = args.addr
+    let addr = args
+        .addr
         .to_socket_addrs()
         .unwrap()
         .next()
@@ -297,122 +292,160 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     tokio::task::LocalSet::new()
         .run_until(async move {
             let listener = tokio::net::TcpListener::bind(&addr).await?;
-            let (
-                publisher_impl,
-                subscribers,
-                cur_tagmask,
-                cur_patmasks,
-            ) = PublisherImpl::new(sender_event.clone());
+            let (publisher_impl, subscribers, cur_tagmask, cur_patmasks) =
+                PublisherImpl::new(sender_event.clone());
             let publisher: publisher::Client<_> = capnp_rpc::new_client(publisher_impl);
 
             // spawn controller thread
             let (sender_raw, receiver_raw) = flume::bounded(5);
-            //let (sender_tag, receiver_tag) = flume::unbounded();
-            let (sender_proc, receiver_proc) = flume::unbounded();
+            let shutdown_sender_2 = shutdown_sender.clone();
             std::thread::spawn(move || {
-                crate::controller::main(
-                    args,
-                    receiver_timer,
-                    receiver_event,
-                    sender_raw,
-                )
-                .unwrap();
+                let cs = crate::controller::main(args, receiver_timer, receiver_event, sender_raw);
+                match cs {
+                    Ok(()) => {}
+                    Err(_) => {
+                        let _ = shutdown_sender_2.send(());
+                    }
+                }
             });
-            
+
             //copier::main(receiver_raw, sender_tag)?;
-            processor::main(receiver_raw,
+            let (sender_proc, receiver_proc) = flume::unbounded();
+            processor::main(
+                receiver_raw,
                 sender_proc,
                 cur_tagmask.clone(),
                 cur_patmasks.clone(),
             )?;
 
             let handle_incoming = async move {
-                loop {
-                    let (stream, _) = listener.accept().await?;
-                    stream.set_nodelay(true)?;
-                    let (reader, writer) =
-                        tokio_util::compat::TokioAsyncReadCompatExt::compat(stream).split();
-                    let network = twoparty::VatNetwork::new(
-                        reader,
-                        writer,
-                        rpc_twoparty_capnp::Side::Server,
-                        Default::default(),
-                    );
-                    let rpc_system =
-                        RpcSystem::new(Box::new(network), Some(publisher.clone().client));
+                tokio::select! {
+                    _ = async {
+                        loop {
+                            let (stream, _) = listener.accept().await?;
+                            stream.set_nodelay(true)?;
+                            let (reader, writer) =
+                                tokio_util::compat::TokioAsyncReadCompatExt::compat(stream).split();
+                            let network = twoparty::VatNetwork::new(
+                                reader,
+                                writer,
+                                rpc_twoparty_capnp::Side::Server,
+                                Default::default(),
+                            );
+                            let rpc_system =
+                                RpcSystem::new(Box::new(network), Some(publisher.clone().client));
 
-                    tokio::task::spawn_local(Box::pin(rpc_system.map(|_| ())));
+                            tokio::task::spawn_local(Box::pin(rpc_system.map(|_| ())));
+                        }
+                        #[allow(unreachable_code)]
+                        Ok::<_, std::io::Error>(())
+                    } => {}
+                    _ = shutdown_receiver.recv() => {}
                 }
+                Ok(())
             };
 
+            let mut shutdown_receiver_2 = shutdown_sender.subscribe();
             let send_to_subscribers = async move {
-                // Use one allocator, don't make a new one each loop
-                // Additionally, the user-supplied buffer for the first segment
-                // reduces cost of zeroing-out new memory allocations
-                let mut b = capnp::Word::allocate_zeroed_vec(FIRST_SEGMENT_WORDS);
-                let mut alloc = message::ScratchSpaceHeapAllocator::new(
-                    capnp::Word::words_to_bytes_mut(&mut b)
-                );
-                while let Ok((dur, tags, patcounts)) = receiver_proc.recv_async().await {
-                    let subscribers1 = subscribers.clone();
-                    let subs = &mut subscribers.lock().subscribers;
-                    
-                    for (&idx, mut subscriber) in subs.iter_mut() {
-                        if subscriber.requests_in_flight < 5 {
-                            subscriber.requests_in_flight += 1;
+                tokio::select! {
+                    _ = async {
+                        // Use one allocator, don't make a new one each loop
+                        // Additionally, the user-supplied buffer for the first segment
+                        // reduces cost of zeroing-out new memory allocations
+                        let mut b = capnp::Word::allocate_zeroed_vec(FIRST_SEGMENT_WORDS);
+                        let mut alloc = message::ScratchSpaceHeapAllocator::new(
+                            capnp::Word::words_to_bytes_mut(&mut b),
+                        );
+                        while let Ok((dur, tags, patcounts)) = receiver_proc.recv_async().await {
+                            let subscribers1 = subscribers.clone();
+                            let subs = &mut subscribers.lock().subscribers;
 
-                            // Only make the message if the sub isn't swamped
-                            let mut msg = capnp::message::Builder::new(&mut alloc);
-                            let mut msg_bdr = msg.init_root::<service_pub::Builder>();
+                            for (&idx, mut subscriber) in subs.iter_mut() {
+                                if subscriber.requests_in_flight < 5 {
+                                    subscriber.requests_in_flight += 1;
 
-                            let mut tag_bdr = msg_bdr.reborrow().init_tags();
-                            tag_bdr.reborrow().set_duration(dur);
-                            tag_bdr.reborrow().set_tagmask(subscriber.tagmask);
-                            let outer_bdr = tag_bdr.reborrow().init_tags().init_tags(1);
-                            let mut inner_bdr = outer_bdr.init(0, tags.len() as u32);
-                            for (i, tag) in tags.iter().enumerate() {
-                                let mut tag_bdr = inner_bdr.reborrow().get(i as u32);
-                                tag_bdr.reborrow().set_time(tag.time);
-                                tag_bdr.reborrow().set_channel(tag.channel);
-                            }
+                                    // Only make the message if the sub isn't swamped
+                                    let mut msg = capnp::message::Builder::new(&mut alloc);
+                                    let mut msg_bdr = msg.init_root::<service_pub::Builder>();
 
-                            let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);
-                            for (i, ((pat, win), &ct)) in patcounts.iter().enumerate() {
-                                let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
-                                pat_bdr.reborrow().set_patmask(*pat);
-                                pat_bdr.reborrow().set_duration(dur);
-                                pat_bdr.reborrow().set_count(ct);
-                                pat_bdr.reborrow().set_window(win.unwrap_or(WIN_DEFAULT));
-                            }
-
-                            let mut request = subscriber.client.push_message_request();
-
-                            request.get().set_message(msg.get_root_as_reader()?)?;
-
-                            let subscribers2 = subscribers1.clone();
-                            tokio::task::spawn_local(Box::pin(request.send().promise.map(
-                                move |r| match r {
-                                    Ok(_) => {
-                                        subscribers2.lock().subscribers.get_mut(&idx).map(
-                                            |ref mut s| {
-                                                s.requests_in_flight -= 1;
-                                            },
-                                        );
+                                    let mut tag_bdr = msg_bdr.reborrow().init_tags();
+                                    tag_bdr.reborrow().set_duration(dur);
+                                    tag_bdr.reborrow().set_tagmask(subscriber.tagmask);
+                                    let outer_bdr = tag_bdr.reborrow().init_tags().init_tags(1);
+                                    let mut inner_bdr = outer_bdr.init(0, tags.len() as u32);
+                                    for (i, tag) in tags.iter().enumerate() {
+                                        let mut tag_bdr = inner_bdr.reborrow().get(i as u32);
+                                        tag_bdr.reborrow().set_time(tag.time);
+                                        tag_bdr.reborrow().set_channel(tag.channel);
                                     }
-                                    Err(e) => {
-                                        info!("Dropping subscriber: {:?}", e);
-                                        subscribers2.lock().subscribers.remove(&idx);
+
+                                    let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);
+                                    for (i, ((pat, win), &ct)) in patcounts.iter().enumerate() {
+                                        let mut pat_bdr = pats_bdr.reborrow().get(i as u32);
+                                        pat_bdr.reborrow().set_patmask(*pat);
+                                        pat_bdr.reborrow().set_duration(dur);
+                                        pat_bdr.reborrow().set_count(ct);
+                                        pat_bdr.reborrow().set_window(win.unwrap_or(WIN_DEFAULT));
                                     }
-                                },
-                            )));
+
+                                    let mut request = subscriber.client.push_message_request();
+
+                                    request.get().set_message(msg.get_root_as_reader()?)?;
+
+                                    let subscribers2 = subscribers1.clone();
+                                    tokio::task::spawn_local(Box::pin(request.send().promise.map(
+                                        move |r| match r {
+                                            Ok(_) => {
+                                                subscribers2.lock().subscribers.get_mut(&idx).map(
+                                                    |ref mut s| {
+                                                        s.requests_in_flight -= 1;
+                                                    },
+                                                );
+                                            }
+                                            Err(e) => {
+                                                info!("Dropping subscriber: {:?}", e);
+                                                subscribers2.lock().subscribers.remove(&idx);
+                                            }
+                                        },
+                                    )));
+                                }
+                            }
                         }
+                        Ok::<(), Box<dyn std::error::Error>>(())
+                    } => {}
+                    _ = shutdown_receiver_2.recv() => {}
+                }
+                Ok::<_, std::io::Error>(())
+            };
+
+            let mut shutdown_receiver_3 = shutdown_sender.subscribe();
+            let ctrl_c_watcher = async {
+                tokio::select! {
+                    ctrl_c_signal = tokio::signal::ctrl_c() => {match ctrl_c_signal {
+                        Ok(()) => {
+                            let span = span!(Level::INFO, "ctrl_c signal");
+                            let _enter = span.enter();
+                            info!("Manual shutdown signal received. Goodbye!");
+                        }
+                        Err(e) => {
+                            let span = span!(Level::ERROR, "ctrl_c signal");
+                            let _enter = span.enter();
+                            error!("Unable to listen to shutdown signal: {}", e);
+                        }
+                    }}
+                    _ = shutdown_receiver_3.recv() => {
+                        let span = span!(Level::INFO, "automatic shutdown");
+                        let _enter = span.enter();
+                        info!("Automatic shutdown signal received. Goodbye!");
                     }
                 }
-                Ok::<(), Box<dyn std::error::Error>>(())
+                let _ = shutdown_sender.send(());
+                Ok(())
             };
 
-            let _: ((), ()) =
-                futures::future::try_join(handle_incoming, send_to_subscribers).await?;
+            let _: ((), (), ()) =
+                futures::future::try_join3(handle_incoming, send_to_subscribers, ctrl_c_watcher)
+                    .await?;
             Ok(())
         })
         .await
