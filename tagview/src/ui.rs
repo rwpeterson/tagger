@@ -1,6 +1,6 @@
 use tagtools::TSTEP;
 
-use crate::app::{App, SettingsMode, Grain};
+use crate::app::{App, Grain, SettingsMode};
 
 #[allow(unused_imports)]
 use tui::{
@@ -43,22 +43,34 @@ pub fn draw<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 fn draw_settings_tab<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(1)].as_ref())
+        .constraints([Constraint::Length(2), Constraint::Min(1)].as_ref())
         .split(area);
     let mut help = None;
     if app.live_settings {
         let state = app.settings_state.as_mut().unwrap();
 
-        help = Some(Paragraph::new(vec![Spans::from(
-            vec![
+        help = Some(Paragraph::new(vec![
+            Spans::from(vec![
                 Span::raw("  wasd "),
-                Span::styled("navigate settings", Style::default().add_modifier(Modifier::DIM)),
+                Span::styled(
+                    "navigate settings",
+                    Style::default().add_modifier(Modifier::DIM),
+                ),
                 Span::raw("  e/q "),
-                Span::styled("enter/leave setting", Style::default().add_modifier(Modifier::DIM)),
-                Span::raw(" w/s "),
-                Span::styled("change setting", Style::default().add_modifier(Modifier::DIM)),
-                Span::raw(" r/f "),
-                Span::styled("change step size [", Style::default().add_modifier(Modifier::DIM)),
+                Span::styled(
+                    "enter/leave setting",
+                    Style::default().add_modifier(Modifier::DIM),
+                ),
+                Span::raw("  w/s "),
+                Span::styled(
+                    "change setting",
+                    Style::default().add_modifier(Modifier::DIM),
+                ),
+                Span::raw("  r/f "),
+                Span::styled(
+                    "change step size [",
+                    Style::default().add_modifier(Modifier::DIM),
+                ),
                 match state.grain {
                     Grain::Fine => Span::styled("▓", Style::default().fg(Color::LightCyan)),
                     Grain::Medium => Span::styled("▓▓", Style::default().fg(Color::LightCyan)),
@@ -70,10 +82,33 @@ fn draw_settings_tab<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
                     Grain::Coarse => Span::raw(""),
                 },
                 Span::styled("]", Style::default().add_modifier(Modifier::DIM)),
-            ]
-        )]));
+            ]),
+            Spans::from(vec![
+                Span::raw("  Ctrl+S "),
+                Span::styled(
+                    "save modified runfile",
+                    Style::default().add_modifier(Modifier::DIM),
+                ),
+                Span::raw("  Color key: "),
+                Span::styled(
+                    "unchanged ",
+                    Style::default().fg(Color::Gray).add_modifier(Modifier::DIM),
+                ),
+                Span::styled(
+                    "modified ",
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::DIM),
+                ),
+                Span::styled(
+                    "editing",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::DIM),
+                ),
+            ]),
+        ]));
     }
-    f.render_widget(help.unwrap_or_else(|| Paragraph::new(Span::raw(""))), chunks[0]);
+    f.render_widget(
+        help.unwrap_or_else(|| Paragraph::new(Span::raw(""))),
+        chunks[0],
+    );
     draw_settings_tab_body(f, app, chunks[1]);
 }
 
@@ -98,12 +133,14 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
                     Constraint::Length(13),
                     Constraint::Length(9),
                     Constraint::Length(3),
+                    Constraint::Length(16),
                     Constraint::Min(1),
                 ]
                 .as_ref(),
             )
             .split(area);
         let state = app.settings_state.as_mut().unwrap();
+        let saved_settings = app.saved_channel_settings.as_ref().unwrap().clone();
         let channel_items: Vec<ListItem> = state
             .channel_settings
             .iter()
@@ -121,18 +158,26 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
             .map(|rs| {
                 let mut s = numfmt(rs.del as f64 * TSTEP, 2);
                 s.push('s');
-                ListItem::new(s)
+                let idx = saved_settings
+                    .clone()
+                    .iter()
+                    .position(|x| x.ch == rs.ch)
+                    .unwrap();
+                let li = ListItem::new(s).style(match saved_settings[idx].del == rs.del {
+                    true => Style::default().fg(Color::Gray),
+                    false => Style::default().fg(Color::Yellow),
+                });
+                return li;
             })
             .collect();
         let delay_list = List::new(delay_items)
             .block(Block::default().borders(Borders::ALL))
-            .style(Style::default().fg(Color::Gray))
             .highlight_style(match state.mode {
                 SettingsMode::Delay(None) => {
                     Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
                 }
                 SettingsMode::Delay(Some(_)) => Style::default()
-                    .fg(Color::Green)
+                    .fg(Color::Red)
                     .add_modifier(Modifier::REVERSED | Modifier::BOLD),
                 _ => Style::default().add_modifier(Modifier::BOLD),
             });
@@ -143,7 +188,16 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
             .map(|rs| {
                 let mut s = numfmt(rs.thr, 3);
                 s.push('V');
-                ListItem::new(s)
+                let idx = saved_settings
+                    .clone()
+                    .iter()
+                    .position(|x| x.ch == rs.ch)
+                    .unwrap();
+                let li = ListItem::new(s).style(match saved_settings[idx].thr == rs.thr {
+                    true => Style::default().fg(Color::Gray),
+                    false => Style::default().fg(Color::Yellow),
+                });
+                return li;
             })
             .collect();
         let threshold_list = List::new(threshold_items)
@@ -154,7 +208,7 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
                     Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
                 }
                 SettingsMode::Threshold(Some(_)) => Style::default()
-                    .fg(Color::Green)
+                    .fg(Color::Red)
                     .add_modifier(Modifier::REVERSED | Modifier::BOLD),
                 _ => Style::default().add_modifier(Modifier::BOLD),
             });
@@ -167,7 +221,16 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
                     true => String::from("-"),
                     false => String::from("+"),
                 };
-                ListItem::new(s)
+                let idx = saved_settings
+                    .clone()
+                    .iter()
+                    .position(|x| x.ch == rs.ch)
+                    .unwrap();
+                let li = ListItem::new(s).style(match saved_settings[idx].inv == rs.inv {
+                    true => Style::default().fg(Color::Gray),
+                    false => Style::default().fg(Color::Yellow),
+                });
+                return li;
             })
             .collect();
         let inversion_list = List::new(inversion_items)
@@ -196,7 +259,12 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
                 let mut bi = bit_iter::BitIter::from(m);
                 let ch_b = bi.next().unwrap() + 1;
                 let ch_a = bi.next().unwrap() + 1;
-                let s = format!("{0}-{1}: {2}", ch_b, ch_a, ct);
+                let dur = app.duration;
+                let chs = format!("{0}-{1}", ch_b, ch_a);
+                let rate = numfmt(ct as f64 / (dur as f64 * 5e-9), 0);
+                let width = chunks[4].width;
+                let padding = " ".repeat(width as usize - chs.len() - rate.len() - 3);
+                let s = format!("{}:{}{}", chs, padding, rate);
                 ListItem::new(s)
             })
             .collect();
@@ -233,7 +301,7 @@ fn draw_titlebar<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
         Span::styled("quit", Style::default().add_modifier(Modifier::DIM)),
         Span::raw("  c "),
         Span::styled(
-            "clear error flags",
+            "clear message flags",
             Style::default().add_modifier(Modifier::DIM),
         ),
         Span::raw("  Ctrl+R "),
@@ -249,7 +317,6 @@ fn draw_tabbar<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
         .tabs
         .titles
         .iter()
-        //.map(|&t| Spans::from(Span::styled(t, Style::default().fg(Color::Gray))))
         .map(|&t| Spans::from(Span::raw(t)))
         .collect();
     let tabs = Tabs::new(titles)
@@ -373,13 +440,22 @@ fn draw_coincidences<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
                 let mut bi = bit_iter::BitIter::from(m);
                 let ch_b = bi.next().unwrap() + 1;
                 let ch_a = bi.next().unwrap() + 1;
-                let rate = ct as f64 / (dur as f64 * 5e-9);
+
+                let chs = format!("{0}-{1}", ch_b, ch_a);
+                let rate = numfmt(ct as f64 / (dur as f64 * 5e-9), 0);
+                let width = elem.width;
+                let padding = " ".repeat(width as usize - chs.len() - rate.len() - 1);
+
                 let text = Paragraph::new(Spans::from(vec![
                     Span::styled(
-                        format!("{0}-{1}", ch_b, ch_a),
+                        chs,
                         Style::default().add_modifier(Modifier::BOLD | Modifier::DIM),
                     ),
-                    Span::styled(numfmt(rate, 0), Style::default()),
+                    Span::raw(padding),
+                    Span::styled(
+                        rate,
+                        Style::default().fg(Color::Gray),
+                    ),
                 ]));
                 f.render_widget(text, elem);
             }
@@ -418,7 +494,7 @@ fn draw_footer<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
             Style::default(),
         ),
         Span::raw(" "),
-        Span::styled("Errors: ", Style::default()),
+        Span::styled("Flags: ", Style::default()),
         Span::raw(""),
     ];
     text.append(&mut errtxt);

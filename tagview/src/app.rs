@@ -3,7 +3,9 @@ use anyhow::{bail, ensure, Context, Result};
 use flume::RecvTimeoutError;
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
-use std::path;
+use std::fs;
+use std::io::{BufWriter, Write};
+use std::path::{self, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tagtools::cfg::Single;
@@ -114,8 +116,10 @@ pub struct App<'a> {
     pub save_handle: SaveHandle,
     pub tabs: TabsState<'a>,
     pub live_settings: bool,
+    pub saved_channel_settings: Option<Vec<RawSingleChannelState>>,
     pub settings_state: Option<SettingsState>,
     pub config: cfg::Run,
+    pub config_path: PathBuf,
 }
 
 impl<'a> App<'a> {
@@ -126,6 +130,7 @@ impl<'a> App<'a> {
         settings_handle: SettingsClientHandle,
         save_handle: SaveHandle,
         config: cfg::Run,
+        config_path: PathBuf,
     ) -> App<'a> {
         App {
             title,
@@ -146,8 +151,10 @@ impl<'a> App<'a> {
             save_handle,
             tabs: TabsState::new(vec!["Count Monitor", "Input Settings"]),
             live_settings: false,
+            saved_channel_settings: None,
             settings_state: None,
             config,
+            config_path,
         }
     }
 
@@ -303,7 +310,7 @@ impl<'a> App<'a> {
                         _ => {}
                     }
                 }
-            },
+            }
             'f' => {
                 if self.tabs.index == 1 && self.live_settings {
                     let state = self.settings_state.as_mut().unwrap();
@@ -313,7 +320,7 @@ impl<'a> App<'a> {
                         _ => {}
                     }
                 }
-            },
+            }
             'x' => {
                 if self.tabs.index == 1 && self.live_settings == false {
                     self.live_settings = true;
@@ -344,6 +351,7 @@ impl<'a> App<'a> {
                             self.should_quit = true;
                         }
                     }
+                    self.saved_channel_settings = Some(channel_settings.clone());
                     self.settings_state = Some(SettingsState {
                         index: 0,
                         channel_settings,
@@ -410,6 +418,7 @@ impl<'a> App<'a> {
                             self.should_quit = true;
                         }
                     }
+                    self.saved_channel_settings = Some(channel_settings.clone());
                     self.settings_state = Some(SettingsState {
                         index: 0,
                         channel_settings,
@@ -481,6 +490,64 @@ impl<'a> App<'a> {
             }
             false => {
                 self.save = true;
+            }
+        }
+    }
+
+    pub fn on_ctrls(&mut self) {
+        if self.tabs.index == 1 && self.live_settings {
+            let saved = self.saved_channel_settings.as_ref().unwrap().to_vec();
+            let current = self
+                .settings_state
+                .as_ref()
+                .unwrap()
+                .channel_settings
+                .to_vec();
+            let mut changed = false;
+            let mut new_config = self.config.clone();
+            for rs in &current {
+                let i = saved.iter().position(|rs2| rs2.ch == rs.ch).unwrap();
+                let j = new_config.channel_settings.iter().position(|rs2| rs2.channel == rs.ch).unwrap();
+                if rs.inv != saved[i].inv {
+                    changed = true;
+                    new_config.channel_settings[j].invert = Some(rs.inv);
+                }
+                if rs.del != saved[i].del {
+                    changed = true;
+                    new_config.channel_settings[j].delay = Some(rs.del);
+                }
+                if rs.thr != saved[i].thr {
+                    changed = true;
+                    new_config.channel_settings[j].threshold = Some(rs.thr);
+                }
+            }
+            if changed {
+                let ts = chrono::Local::now();
+                let mut new_stem = self.config_path
+                    .as_path()
+                    .file_stem()
+                    .unwrap_or_else(|| std::ffi::OsStr::new("data"))
+                    .to_string_lossy()
+                    .to_string();
+                new_stem.push_str("_mod_");
+                new_stem.push_str(&ts.format("%F_%H-%M-%S").to_string());
+                let mut new_path = self.config_path.clone().with_file_name(new_stem);
+                new_path.set_extension("json");
+                match (|| {
+                    let json_record = serde_json::to_string_pretty(&new_config)?;
+                    let f = fs::File::create(&new_path)?;
+                    let mut wtr = BufWriter::new(f);
+                    wtr.write_all(json_record.as_bytes())?;
+                    Ok(()) as Result<(), Box<dyn std::error::Error>>
+                })() {
+                    Ok(()) => {
+                        self.flags.insert(format!("{:?} config save successful", new_path));
+                    }
+                    Err(e) => {
+                        self.flags.insert(format!("{}", e));
+                    }
+                }
+
             }
         }
     }

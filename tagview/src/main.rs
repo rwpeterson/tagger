@@ -78,7 +78,7 @@ fn main() -> Result<()> {
 
     // Process the config for subscription
     let path = PathBuf::from(&args.config.unwrap_or("runfile_example.json".to_owned()));
-    let f = File::open(path)?;
+    let f = File::open(path.clone())?;
     let rdr = BufReader::new(f);
     let config: cfg::Run = serde_json::from_reader(rdr)?;
 
@@ -112,6 +112,7 @@ fn main() -> Result<()> {
         settings_handle,
         save_handle,
         config,
+        path,
     );
     terminal.clear()?;
     loop {
@@ -136,6 +137,12 @@ fn main() -> Result<()> {
                     modifiers: KeyModifiers::CONTROL,
                 } => {
                     app.on_ctrlr();
+                }
+                KeyEvent {
+                    code: KeyCode::Char('s'),
+                    modifiers: KeyModifiers::CONTROL,
+                } => {
+                    app.on_ctrls();
                 }
                 KeyEvent {
                     code: KeyCode::Char(char),

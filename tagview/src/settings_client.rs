@@ -31,6 +31,7 @@ pub enum RawChannelSetting {
     Threshold((u8, f64)),
 }
 
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct RawSingleChannelState {
     pub ch: u8,
     pub inv: bool,
