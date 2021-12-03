@@ -8,7 +8,7 @@
 ** DONE view channel settings
 ** DONE manipulate channel settings
 ** DONE import channel settings
-** TODO export channel settings
+** DONE export channel settings
 ** DONE change quit keybinding
 * tagsave
 ** TODO progress bar
@@ -28,11 +28,9 @@ Reimplement from ~coincidence_window~
 *** TODO tagview
 *** TODO tagsave
 * tcat
-** TODO split off into own crate
-Has argparse libs, etc. in dependencies
-Can create a pure Rust impl for crappy OSs
+** TODO split off into own crate?
 * timetag
-** TODO CXX: catch foreign exceptions in =Result<T>=
+** DONE CXX: catch foreign exceptions in =Result<T>=
 May not be possible since CXX can only catch them in certain conditions?
 The ~extern "C++"~ function must be declared to return =Result<T>=.
 Which throw under various conditions?
