@@ -19,7 +19,12 @@ pub fn main(
     let _enter = span.enter();
 
     let tt = new_time_tagger();
-    tt.open();
+    if let Err(_) = tt.open() {
+        let span = span!(Level::ERROR, "connection");
+        let _enter = span.enter();
+        error!("Could not connect to time tagger");
+        bail!("tagger connection failed");
+    }
     info!("tagger connected");
     if args.calibrate {
         tt.calibrate();

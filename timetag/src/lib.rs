@@ -105,7 +105,7 @@ pub mod ffi {
         */
 
         // Wrappers for vendor class methods
-        fn open(self: &TimeTagger) -> ();
+        fn open(self: &TimeTagger) -> Result<()>;
         fn close(self: &TimeTagger) -> ();
         fn calibrate(self: &TimeTagger) -> ();
         fn read_error_flags(self: &TimeTagger) -> u32;
