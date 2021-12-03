@@ -1,7 +1,6 @@
 #[allow(unused_imports)]
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use bit_iter::BitIter;
 use tagtools::bit::BitOps;
 
 fn trait_u8(c: &mut Criterion) {
