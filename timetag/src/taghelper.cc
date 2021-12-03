@@ -1,21 +1,6 @@
 #include "timetag/include/taghelper.h"
 #include "timetag/src/lib.rs.h"
 
-/* currently not working !!!
-namespace rust {
-namespace behavior {
-
-template <typename Try, typename Fail>
-static void trycatch(Try &&func, Fail &&fail) noexcept try {
-  func();
-} catch (const TimeTag::Exception &e) {
-  fail(e.GetMessageText().c_str());
-}
-
-} // namespace behavior
-} // namespace rust
-*/
-
 namespace TimeTag {
 
 TimeTagger::TimeTagger()

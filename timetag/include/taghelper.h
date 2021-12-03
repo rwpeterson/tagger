@@ -4,19 +4,6 @@
 #include <memory>
 #include <vector>
 
-/* currently not working !!!
-// This overrides CXX's default exception -> Result behavior, since CTimeTag
-// does not use std::exception
-namespace rust {
-namespace behavior {
-
-template <typename Try, typename Fail>
-static void trycatch(Try &&func, Fail &&fail) noexcept;
-
-} // namespace behavior
-} // namespace rust
-*/
-
 namespace TimeTag {
 
 struct FfiTag;
