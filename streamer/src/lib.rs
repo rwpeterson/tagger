@@ -19,6 +19,9 @@ pub struct CliArgs {
     /// function generator high duration
     #[argh(option, default = "0")]
     pub fghigh: u32,
+    /// calibrate time tagger
+    #[argh(option, default = "false")]
+    pub calibrate: bool,
     /// server address
     #[argh(option, default = "String::from(\"127.0.0.1:6969\")")]
     pub addr: String,

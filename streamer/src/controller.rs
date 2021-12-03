@@ -21,6 +21,9 @@ pub fn main(
     let tt = new_time_tagger();
     tt.open();
     info!("tagger connected");
+    if args.calibrate {
+        tt.calibrate();
+    }
     for ch in CHAN16 {
         tt.set_input_threshold(ch, 2.0);
     }
