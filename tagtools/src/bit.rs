@@ -1,6 +1,8 @@
 //! Bitmask tools for working with patterns of channels
 
 use bit_iter::BitIter;
+use num_traits::{FromPrimitive, PrimInt, Unsigned};
+use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
 
 /// Convert channels into a bitmask
 pub fn chans_to_mask(chs: &[u8]) -> u16 {
@@ -8,7 +10,7 @@ pub fn chans_to_mask(chs: &[u8]) -> u16 {
     for ch in chs {
         m |= 1 << (ch - 1);
     }
-    return m;
+    m
 }
 
 /// Returns a single channel if the mask has only one channel
@@ -40,14 +42,10 @@ pub fn mask_to_chans(m: u16) -> Vec<u8> {
         // Channels are 1-indexed, bits are 0-indexed
         chs.push(1 + b as u8);
     }
-    return chs;
+    chs
 }
 
-/// Bitwise set/clear/toggle/check/change operations for u16 and u32
-
-use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
-use num_traits::{FromPrimitive, PrimInt, Unsigned};
-
+/// Bitwise set/clear/toggle/change/check operations
 pub trait BitOps:
     PrimInt
     + BitAndAssign
@@ -86,7 +84,7 @@ impl BitOps for u8 {
 
     #[inline]
     fn check(self, b: usize) -> bool {
-        return self >> b & 1 == 1;
+        self >> b & 1 == 1
     }
 }
 
@@ -113,7 +111,7 @@ impl BitOps for u16 {
 
     #[inline]
     fn check(self, b: usize) -> bool {
-        return self >> b & 1 == 1;
+        self >> b & 1 == 1
     }
 }
 
@@ -140,7 +138,7 @@ impl BitOps for u32 {
 
     #[inline]
     fn check(self, b: usize) -> bool {
-        return self >> b & 1 == 1;
+        self >> b & 1 == 1
     }
 }
 
@@ -167,7 +165,7 @@ impl BitOps for u64 {
 
     #[inline]
     fn check(self, b: usize) -> bool {
-        return self >> b & 1 == 1;
+        self >> b & 1 == 1
     }
 }
 
@@ -194,7 +192,7 @@ impl BitOps for u128 {
 
     #[inline]
     fn check(self, b: usize) -> bool {
-        return self >> b & 1 == 1;
+        self >> b & 1 == 1
     }
 }
 
