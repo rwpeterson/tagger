@@ -13,15 +13,24 @@ pub fn singles(tags: &[Tag], ch: u8) -> u64 {
 }
 
 /// Count coincidences at a fixed delay
-pub fn coincidence(
-    tags: &[Tag],
-    ch_a: u8,
-    ch_b: u8,
-    win: i64,
-    delay: i64,
-) -> u64 {
+///
+/// We have two implementations:
+/// - `coincidence_intersection`, using set intersection
+/// - `coincidence_histogram_1`, using the histogram algorithm at a single delay
+/// The set intersection algorithm is ~50% faster and used by default.
+/// Run `cargo bench` to benchmark this yourself.
+///
+/// Integration tests cross-check both implementations against each other
+/// and known-correct results from other codes.
+pub fn coincidence(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> u64 {
+    coincidence_intersection(tags, ch_a, ch_b, win, delay)
+}
+
+/// Count coincidences using the histogram algorithm at a single fixed delay
+#[inline]
+pub fn coincidence_histogram_1(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> u64 {
     let hist = coincidence_histogram(tags, ch_a, ch_b, win, delay, delay);
-    return hist[0]
+    return *(hist.get(&(delay / win * win)).unwrap());
 }
 
 /// Calculate the raw coincidence histogram between `ch_a`, `ch_b` in a given

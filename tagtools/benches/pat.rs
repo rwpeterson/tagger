@@ -7,19 +7,38 @@ mod common;
 
 fn singles(c: &mut Criterion) {
     let tags = common::load_test_data();
-    
-    c.bench_function("singles", |b| { b.iter( || {
-        pat::singles(&tags, black_box(3));
-    })});
+
+    c.bench_function("singles", |b| {
+        b.iter(|| {
+            pat::singles(&tags, black_box(3));
+        })
+    });
 }
 
-fn coincidences(c: &mut Criterion) {
+fn coincidence_histogram_1(c: &mut Criterion) {
     let tags = common::load_test_data();
-    
-    c.bench_function("coincidences", |b| { b.iter( || {
-        pat::coincidence(&tags, black_box(3), 15, 1, 26);
-    })});
+
+    c.bench_function("coincidence_histogram_1", |b| {
+        b.iter(|| {
+            pat::coincidence(&tags, black_box(3), 15, 1, 26);
+        })
+    });
 }
 
-criterion_group!(benches, singles, coincidences);
+fn coincidence_intersection(c: &mut Criterion) {
+    let tags = common::load_test_data();
+
+    c.bench_function("coincidence_intersection", |b| {
+        b.iter(|| {
+            pat::coincidence_intersection(&tags, black_box(3), 15, 1, 26);
+        })
+    });
+}
+
+criterion_group!(
+    benches,
+    singles,
+    coincidence_histogram_1,
+    coincidence_intersection
+);
 criterion_main!(benches);
