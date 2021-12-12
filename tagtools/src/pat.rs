@@ -3,6 +3,7 @@
 use crate::Tag;
 use itertools::Itertools;
 use std::cmp;
+use std::collections::BTreeMap;
 use std::collections::VecDeque;
 
 /// Count number of events in a given channel.
@@ -130,109 +131,76 @@ pub fn coincidence_histogram(
     return histogram;
 }
 
-/// Find the tags with a coincidence between ch_a, ch_b in a given win,
-/// returning 2D Vec of tags coincident at each delay, inclusive of min_delay
-/// to max_delay. The retained tag is the earliest of the two in the
-/// coincidence, from ch_a (ch_b) for pos (neg) delays.
-pub fn tag_histogram(
-    tags: &[Tag],
-    win: i64,
-    ch_a: u8,
-    ch_b: u8,
-    min_delay: i64,
-    max_delay: i64,
-) -> Vec<Vec<Tag>> {
-    let mut tag_iter = tags.iter().peekable();
-
-    // Histogram stores bins of a given window size, not the time resolution
-    let mut histogram: Vec<Vec<Tag>> =
-        vec![Vec::new(); ((max_delay - min_delay) / win) as usize + 1];
-
-    // Note below that tags are binned into windows when pushed onto the buffer
-    let mut buffer: VecDeque<Tag> =
-        VecDeque::with_capacity(cmp::max(min_delay.abs(), max_delay) as usize);
-
-    // Seed the buffer with one tag
-    if let Some(&t) = tag_iter.next() {
-        buffer.push_back(Tag {
-            time: t.time / win,
-            channel: t.channel,
-        })
-    }
-
-    // We scan all relevant delays for each tag, always looking at later tags
-    // for positive (negative) delays when the first tag is from ch_a (ch_b).
-    while !buffer.is_empty() {
-        if let Some(t0) = buffer.pop_front() {
-            // Fill buffer
-            buffer.extend(
-                tag_iter
-                    .peeking_take_while(|&&t| t.time - t0.time <= max_delay)
-                    .map(|&t| Tag {
-                        time: t.time / win,
-                        channel: t.channel,
-                    }),
-            );
-            // Count coincidences with tag t0 at all relevant delays
-            if t0.channel == ch_a {
-                for coinc in buffer
-                    .iter()
-                    .filter(|&&t| t.channel == ch_b)
-                    // If min_delay is positive, we skip from 0 to min_delay
-                    .skip_while(|&&t| {
-                        if min_delay.is_positive() {
-                            t.time - t0.time < min_delay
-                        } else {
-                            false
-                        }
-                    })
-                    .take_while(|&&t| t.time - t0.time <= max_delay)
-                {
-                    // Corresponds to positive delay in the autocorrelation
-                    let delay = coinc.time - t0.time;
-                    histogram[(delay - min_delay) as usize].push(t0);
-                }
-            // If min_delay is negative, we consider negative delays separately
-            } else if min_delay.is_negative() && t0.channel == ch_b {
-                for coinc in buffer
-                    .iter()
-                    .filter(|&&t| t.channel == ch_a)
-                    .take_while(|&&t| t0.time - t.time >= min_delay)
-                {
-                    // Corresponds to negative delay in the autocorrelation
-                    // Fret not, this doesn't double count tau = 0 events
-                    // since we only look forward in time
-                    let delay = t0.time - coinc.time;
-                    histogram[(delay - min_delay) as usize].push(t0);
-                }
-            }
-        }
-        // Don't leave buffer empty for the next loop
-        if buffer.is_empty() {
-            if let Some(&t) = tag_iter.next() {
-                buffer.push_back(Tag {
-                    time: t.time / win,
-                    channel: t.channel,
-                })
-            }
-        }
-    }
-    return histogram;
-}
-
 /// Calculate the second-order degree of coherence, or g^(2) function, of light
 /// from photon correlations, as in an intensity interferometer or
 /// Hanbury Brown-Twiss experiment. Window, channels, and delay range specified
 /// as in coincidence_histogram, as this is essentially a normalization of that
 /// histogram to the singles rates and window size.
-pub fn g2(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, min_delay: i64, max_delay: i64) -> Vec<f64> {
+pub fn g2(
+    tags: &[Tag],
+    ch_a: u8,
+    ch_b: u8,
+    win: i64,
+    min_delay: i64,
+    max_delay: i64,
+) -> BTreeMap<i64, f64> {
     let total_time = (tags.last().unwrap().time - tags.first().unwrap().time) as f64;
     let singles_a = singles(tags, ch_a) as f64;
     let singles_b = singles(tags, ch_b) as f64;
     let g2_histogram = coincidence_histogram(tags, ch_a, ch_b, win, min_delay, max_delay)
         .iter()
-        .map(|&b| (b as f64) * total_time / win as f64 / singles_a / singles_b)
-        .collect::<Vec<f64>>();
+        .map(|(&d, &c)| {
+            (
+                d,
+                (c as f64) * total_time / win as f64 / singles_a / singles_b,
+            )
+        })
+        .collect();
 
     return g2_histogram;
+}
+
+/// Count coincidences using set intersection algorithm.
+///
+/// A linear complexity O(m + n) is possible if the two sets are sorted.
+/// Because our (pre-delayed) tags are time-sorted, the two iterators of
+/// each channel's tags are individually sorted, even with an arbitrary
+/// delay added between them. Compare to C++'s `std::set_intersection`.
+#[inline]
+pub fn coincidence_intersection(tags: &[Tag], ch_a: u8, ch_b: u8, win: i64, delay: i64) -> u64 {
+    let mut count = 0;
+    let del_win = delay / win;
+    if del_win >= 0 {
+        let mut b_iter = tags.iter().filter(|&&t| t.channel == ch_b);
+        if let Some(mut current_b) = b_iter.next() {
+            for current_a in tags.iter().filter(|&&t| t.channel == ch_a) {
+                while current_b.time / win < current_a.time / win - del_win {
+                    current_b = match b_iter.next() {
+                        Some(current_b) => current_b,
+                        None => return count,
+                    };
+                }
+                if current_a.time / win == (current_b.time - delay) / win {
+                    count += 1;
+                }
+            }
+        }
+    // TODO: remove this branch by writing the arithmetic the right way
+    } else {
+        let mut a_iter = tags.iter().filter(|&&t| t.channel == ch_a);
+        if let Some(mut current_a) = a_iter.next() {
+            for current_b in tags.iter().filter(|&&t| t.channel == ch_b) {
+                while current_a.time / win < current_b.time / win + del_win {
+                    current_a = match a_iter.next() {
+                        Some(current_b) => current_b,
+                        None => return count,
+                    };
+                }
+                if current_b.time / win == (current_a.time + delay) / win {
+                    count += 1;
+                }
+            }
+        }
+    }
+    count
 }
