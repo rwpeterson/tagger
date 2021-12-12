@@ -3,7 +3,6 @@ use tagtools::{de, pat};
 use anyhow::{Result};
 use std::fs::File;
 use std::io::{BufReader, stdout};
-use std::ops::RangeInclusive;
 
 #[derive(Debug, argh::FromArgs, Clone)]
 /// cli app args
@@ -35,8 +34,6 @@ fn main() -> Result<()> {
     let file = config.tags;
     let mut rdr = BufReader::new(File::open(file)?);
     let tags = de::tags(&mut rdr)?;
-    
-    let mut delays: RangeInclusive<i64> = config.min..=config.max;
 
     let histogram = pat::coincidence_histogram(
         &tags,
@@ -54,9 +51,8 @@ fn main() -> Result<()> {
                 .delimiter(b'\t')
                 .from_writer(stdout);
 
-    for h in histogram {
-        let d = delays.next().unwrap();
-        wtr.write_record(&[d.to_string(), h.to_string()])?;
+    for (d, c) in histogram {
+        wtr.write_record(&[d.to_string(), c.to_string()])?;
     }
     wtr.flush()?;
     Ok(())
