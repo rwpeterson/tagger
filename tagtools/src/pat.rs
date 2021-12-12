@@ -24,8 +24,23 @@ pub fn coincidence(
     return hist[0]
 }
 
-/// Calculate the raw coincidence histogram between ch_a, ch_b in a given
-/// win, for delays inclusive of min_delay to max_delay.
+/// Calculate the raw coincidence histogram between `ch_a`, `ch_b` in a given
+/// `win`, for delays inclusive of `min_delay` to `max_delay`.
+///
+/// Because the tags are already time-sorted, this algorithm processes them
+/// in linear time. A deque (double-ended queue) holds an initial tag plus
+/// all later tags within the delay interval. Each combination of the initial
+/// tag and subsequent tags in the deque represents a coincidence if they are
+/// from the two requested channels: the count of coincidences at each delay is
+/// incremented. If the first tag is from `ch_a`, later tags from `ch_b` are
+/// assigned positive delay; conversely, if the first tag is from `ch_b`, later
+/// tags from `ch_a` are assigned negative delay. This processing of the deque
+/// can therefore also be done in linear time. After this step, the first
+/// tag is popped off the deque and discarded, and the process repeats.
+///
+/// The time performance of the algorithm should be `O(n * m)`, where there
+/// are `n` tags and `m = max(min_delay, max_delay)` is the length of the deque
+/// (up to a scaling factor).
 pub fn coincidence_histogram(
     tags: &[Tag],
     ch_a: u8,
@@ -33,48 +48,54 @@ pub fn coincidence_histogram(
     win: i64,
     min_delay: i64,
     max_delay: i64,
-) -> Vec<u64> {
-    let mut tag_iter = tags.iter().peekable();
+) -> BTreeMap<i64, u64> {
+    // Peekable iterator over the tags, binned by win via integer division
+    // We don't multiply again by win to restore the original scale of the
+    // time units; this is done later when required.
+    let mut tag_iter = tags
+        .iter()
+        .map(|t| Tag { time: t.time / win, channel: t.channel })
+        .peekable();
 
-    // Distance to look ahead to accomodate extremes in positive and negative delay
-    // Not binned by win since tags are also not binned yet when filling buffer
-    let horizon = cmp::max(min_delay.saturating_abs(), max_delay);
-
-    // Window-binned min and max delay
+    // Scaled min and max delay for index calculations
     let min_win = min_delay / win;
     let max_win = max_delay / win;
 
-    // Histogram stores bins of a given window size, not the time resolution
-    let mut histogram: Vec<u64> = vec![0; (max_win - min_win) as usize + 1];
+    // Distance to look ahead to accommodate extremes in positive and negative delay
+    let horizon = cmp::max(min_win.abs(), max_win);
 
-    // Note below that tags are binned into windows when pushed onto the buffer
-    let mut buffer: VecDeque<Tag> =
-        VecDeque::with_capacity((horizon / win) as usize);
+    // Window-binned min and max delay in physical units
+    let min = min_win * win;
+    let max = max_win * win;
+
+    // Histogram stores bins of a given window size, not the time resolution
+    let mut histogram: BTreeMap<i64, u64> = BTreeMap::new();
+    (min..=max).step_by(win as usize).for_each(|d| {
+        histogram.insert(d, 0);
+    });
+
+    // Moving FIFO to hold one tag plus every subsequent tag in its horizon
+    let mut buffer: VecDeque<Tag> = VecDeque::with_capacity(horizon as usize);
 
     // Seed the buffer with one tag
-    if let Some(&t) = tag_iter.next() {
-        buffer.push_back(Tag {
-            time: t.time / win,
-            channel: t.channel,
-        })
+    if let Some(t) = tag_iter.next() {
+        buffer.push_back(t);
     }
 
     // We scan all relevant delays for each tag, always looking at later tags
     // for positive (negative) delays when the first tag is from ch_a (ch_b).
     while !buffer.is_empty() {
+        // This pops one tag per loop, the rest is recording the relative delays
+        // to subsequent tags when they are between min_delay and max_delay
         if let Some(t0) = buffer.pop_front() {
-            // Fill buffer
+            // Extend buffer to catch anything possibly within min/max delays
             buffer.extend(
                 tag_iter
-                    .peeking_take_while(|&&t| t.time - t0.time <= horizon)
-                    .map(|&t| Tag {
-                        time: t.time / win,
-                        channel: t.channel,
-                    }),
+                    .peeking_take_while(|t| t.time - t0.time <= horizon)
             );
-            // Count coincidences at all nonnegative delays with t0 as ch_a
+            // Count coincidences at all non-negative delays with t0 as ch_a
             if t0.channel == ch_a {
-                for coinc in buffer
+                buffer
                     .iter()
                     .filter(|&&t| t.channel == ch_b)
                     // If min_win is positive, we skip from 0 to min_win
@@ -86,45 +107,44 @@ pub fn coincidence_histogram(
                         }
                     })
                     .take_while(|&&t| t.time - t0.time <= max_win)
-                {
-                    // Corresponds to positive delay in the autocorrelation
-                    let delay = coinc.time - t0.time;
-                    histogram[(delay - min_win) as usize] += 1;
-                }
-            // If min_win is nonpositive, consider all nonpositive delays with t0 as ch_b
+                    .for_each(|coinc| {
+                        // Corresponds to positive delay in the histogram,
+                        // multiplied back up to the physical pre-windowing
+                        // timescale
+                        let delay = (coinc.time - t0.time) * win;
+                        *(histogram.get_mut(&delay).unwrap()) += 1;
+                    });
+            // Count coincidences at all non-positive delays with t0 as ch_b
             } else if !min_win.is_positive() && t0.channel == ch_b {
-                for coinc in buffer
+                buffer
                     .iter()
                     .filter(|&&t| t.channel == ch_a)
                     // If max_win is negative, we skip from 0 to max_win
                     .skip_while(|&&t| {
                         if max_win.is_negative() {
-                            t0.time - t.time > max_win
+                            t.time - t0.time < - max_win
                         } else {
                             false
                         }
                     })
-                    .take_while(|&&t| t0.time - t.time >= min_win)
-                {
-                    // Corresponds to nonpositive delay in the autocorrelation
-                    // Fret not, this doesn't double count delay = 0 events
-                    // since either ch_a or ch_b will be the first tag,
-                    // so only one of the if or else if branches will execute.
-                    // The hardware also enforces an invariant that there will
-                    // be no more than one pulse per input per coincidence window
-                    let delay = t0.time - coinc.time;
-                    histogram[(delay - min_win) as usize] += 1;
-                }
+                    .take_while(|&&t| t.time - t0.time <= - min_win)
+                    .for_each(|coinc| {
+                        // Corresponds to non-positive delay in the histogram
+                        // Fret not, this doesn't double count delay = 0 events
+                        // since either ch_a or ch_b will be the first tag,
+                        // so only one of the if or else-if branches will execute.
+                        // The first tag will be gone in the next loop so the
+                        // opposite case is not present to double-count.
+                        let delay = - (coinc.time - t0.time) * win;
+                        *(histogram.get_mut(&delay).unwrap()) += 1;
+                    });
             }
         }
 
         // Don't leave buffer empty for the next loop
         if buffer.is_empty() {
-            if let Some(&t) = tag_iter.next() {
-                buffer.push_back(Tag {
-                    time: t.time / win,
-                    channel: t.channel,
-                })
+            if let Some(t) = tag_iter.next() {
+                buffer.push_back(t)
             }
         }
     }
