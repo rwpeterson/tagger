@@ -13,6 +13,8 @@ use tagtools::{bit::chans_to_mask, cfg, Tag};
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 
+const WIN_DEFAULT: u32 = 1;
+
 pub struct RawChannelState {
     pub invm: u16,
     pub dels: Vec<u32>,
@@ -270,7 +272,7 @@ impl Client {
                 for (i, (pat, win)) in pats.iter().enumerate() {
                     let mut lpbdr = pbdr.reborrow().get(i as u32);
                     lpbdr.reborrow().set_patmask(*pat);
-                    lpbdr.reborrow().set_window(win.unwrap_or_default());
+                    lpbdr.reborrow().set_window(win.unwrap_or(WIN_DEFAULT));
                 }
 
                 // Assemble the channel settings get request

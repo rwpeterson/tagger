@@ -12,6 +12,8 @@ use tagtools::{bit::chans_to_mask, Tag, cfg};
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 
+const WIN_DEFAULT: u32 = 1;
+
 struct Client {
     receiver: mpsc::UnboundedReceiver<ClientMessage>,
     buffer: Arc<Mutex<Vec<StreamData>>>,
@@ -194,7 +196,7 @@ impl Client {
                 for c in config.coincidences {
                     match c {
                         cfg::Coincidence::Channels((ch_a, ch_b)) => {
-                            pats.push((chans_to_mask(&[ch_a, ch_b]), 0));
+                            pats.push((chans_to_mask(&[ch_a, ch_b]), WIN_DEFAULT));
                         },
                         cfg::Coincidence::ChannelsWin((ch_a, ch_b, win)) => {
                             pats.push((chans_to_mask(&[ch_a, ch_b]), win));
