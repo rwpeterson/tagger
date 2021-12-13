@@ -1,5 +1,6 @@
 use anyhow::{bail, Result};
 use chrono::Local;
+use indicatif::{ProgressBar, ProgressStyle};
 use tagsave::CliArgs;
 use parking_lot::Mutex;
 use std::collections::HashMap;
@@ -61,6 +62,18 @@ async fn main() -> Result<()> {
         }
     };
 
+    // Timestamp to save under, reflect the beginning time rather than the end
+    let ts = Local::now();
+
+    // Start progress bar
+    let total = 65536;
+    let pb = ProgressBar::new(total);
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{prefix:>12.cyan.bold} [{elapsed_precise}] [{bar:57}] ({eta}) {msg}")
+        .progress_chars("=> ")
+    );
+    pb.set_prefix("Init");
+
     // Get tick rate
     let tick_rate = Duration::from_millis(args.tick_rate);
 
@@ -80,6 +93,8 @@ async fn main() -> Result<()> {
 
     // Start client thread, connect to server
     let client = ClientHandle::new(addr, config.clone());
+
+    pb.set_prefix("Acquiring");
 
     loop {
         let (respond_to, response) = flume::bounded(1);
@@ -125,6 +140,7 @@ async fn main() -> Result<()> {
         // Check if limit condition met and break
         match config.limit {
             Some(cfg::RunLimit::Duration(d)) => {
+                pb.set_position(first_tick.elapsed().as_secs() * total / d.as_secs());
                 if first_tick.elapsed() > d {
                     break
                 }
@@ -132,6 +148,7 @@ async fn main() -> Result<()> {
             Some(cfg::RunLimit::SinglesLimit(ch, limit)) => {
                 match (*pats).get(&(bit::chans_to_mask(&[ch]), None)) {
                     Some(&cts) => {
+                        pb.set_position(cts * total / limit);
                         if cts > limit {
                             break
                         }
@@ -142,6 +159,7 @@ async fn main() -> Result<()> {
             Some(cfg::RunLimit::CoincidenceLimit(ch_a, ch_b, win, limit)) => {
                 match (*pats).get(&(bit::chans_to_mask(&[ch_a, ch_b]), Some(win))) {
                     Some(&cts) => {
+                        pb.set_position(cts * total / limit);
                         if cts > limit {
                             break
                         }
@@ -159,6 +177,8 @@ async fn main() -> Result<()> {
         std::thread::sleep(timeout);
         last_tick = Instant::now();
     }
+
+    pb.set_prefix("Finishing");
 
     client.sender.send(ClientMessage::Shutdown)?;
 
@@ -206,7 +226,6 @@ async fn main() -> Result<()> {
 
     let json_record = serde_json::to_string_pretty(&record)?;
 
-    let ts = Local::now();
     let mut rcd_stem = cfg_path
         .as_path()
         .file_stem()
@@ -216,25 +235,25 @@ async fn main() -> Result<()> {
     rcd_stem.push('_');
     let mut rcd_name = String::from(&rcd_stem);
     rcd_name.push_str(&ts.format("%F_%H-%M-%S").to_string());
-    let mut rcd_name2 = String::from(&rcd_stem);
-    rcd_name2.push_str(&ts.format("%F_%H-%M-%S%.3f").to_string());
-    let mut rcd_path = cfg_path.with_file_name(rcd_name);
-    let mut rcd_path2 = cfg_path.with_file_name(rcd_name2);
+    let mut rcd_path = cfg_path.with_file_name(&rcd_name);
     rcd_path.set_extension("json");
-    rcd_path2.set_extension("json");
     {
         let f = OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(rcd_path).unwrap_or_else( |_|
-                OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(rcd_path2)
-                    .expect("Saving more than one file per millisecond")
-            );
+            .open(&rcd_path)
+            .expect("Saving more than one file per second");
         let mut  wtr = BufWriter::new(f);
         wtr.write_all(json_record.as_bytes())?;
+
+        save.sender.send(SaveMessage::Reset)?;
+        
+        pb.set_prefix("Saved");
+        pb.println(    format!("Data saved to {}", rcd_path.file_name().unwrap().to_string_lossy()));
+        if config.save_tags == Some(cfg::SaveTags::Save(true)) {
+            pb.println(format!("Tags saved to {}", filepath.clone().unwrap().file_name().unwrap().to_string_lossy()));
+        }
+        pb.finish();
     }
 
     Ok(())
