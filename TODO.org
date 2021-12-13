@@ -11,10 +11,10 @@
 ** DONE export channel settings
 ** DONE change quit keybinding
 * tagsave
-** TODO progress bar
+** DONE progress bar
 ** DONE human-format json output
 * tagtools
-** BUG ~pat::coincidence_window~ does not work with =win != 1=
+** DONE ~pat::coincidence_window~ does not work with =win != 1=
 ** DONE ~pat::coincidence~ does not work with =delay <= 0=
 Reimplement from ~coincidence_window~
 ** DONE ~pat::coincidence~ and ~pat::coincidence_window~ have different APIs
@@ -23,12 +23,12 @@ Reimplement from ~coincidence_window~
 ** DONE change =set_fg= call to a command-line flag
 ** BUG discrepancy between duration and number of counts from function generator
 * tag_server.capnp users
-** TODO consistent default value and behavior for coincidence window size
+** DONE consistent default value and behavior for coincidence window size
 *** DONE streamer
-*** TODO tagview
-*** TODO tagsave
+*** DONE tagview
+*** DONE tagsave
 * tcat
-** TODO split off into own crate?
+** NO split off into own crate?
 * timetag
 ** DONE CXX: catch foreign exceptions in =Result<T>=
 May not be possible since CXX can only catch them in certain conditions?
