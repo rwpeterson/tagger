@@ -77,13 +77,32 @@ async fn main() -> Result<()> {
     // Get tick rate
     let tick_rate = Duration::from_millis(args.tick_rate);
 
+    // Tags file path
+    let mut tags_stem = cfg_path
+        .as_path()
+        .file_stem()
+        .unwrap_or_else(|| std::ffi::OsStr::new("data"))
+        .to_string_lossy()
+        .to_string();
+    tags_stem.push('_');
+    let mut tags_name = String::from(&tags_stem);
+    tags_name.push_str(&ts.format("%F_%H-%M-%S").to_string());
+    let mut tags_path = cfg_path.with_file_name(&tags_name);
+    tags_path.set_extension("tags.zst");
+
     // Start save thread
-    let save = SaveHandle::new();
+    let save = SaveHandle::new(
+        if config.save_tags == Some(cfg::SaveTags::Save(true)) {
+            Some(tags_path.clone())
+        } else {
+            None
+        }
+    );
 
     // Data structures to hold data during the run
     let xtags= Arc::new(Mutex::new(Vec::<Tag>::new()));
     let xpats = Arc::new(Mutex::new(HashMap::<(u16, Option<u32>), u64>::new()));
-    let filepath: Option<std::path::PathBuf> = None;
+    let filepath: Option<std::path::PathBuf> = Some(tags_path);
 
     let mut duration = 0u64;
     let timestamp = Local::now();
@@ -211,7 +230,7 @@ async fn main() -> Result<()> {
         }
     }
     if config.save_tags == Some(cfg::SaveTags::Save(true)) {
-        record.save_tags = Some(cfg::SaveTags::TagFile(filepath.unwrap()));
+        record.save_tags = Some(cfg::SaveTags::TagFile(filepath.clone().unwrap()));
     }
     for channel in CHAN16 {
         record.channel_settings.push(
