@@ -1,3 +1,5 @@
+#[allow(dead_code)]
+
 use csv::ReaderBuilder;
 use tagtools::de;
 use std::env;

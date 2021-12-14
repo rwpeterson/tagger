@@ -18,7 +18,7 @@ fn singles(c: &mut Criterion) {
 fn coincidences(c: &mut Criterion) {
     let tags = common::load_test_data();
     let mut group = c.benchmark_group("Coincidences");
-    for i in (-64..=64i64).step_by(8) {
+    for i in (-64..=64i64).step_by(32) {
         group.bench_with_input(
             BenchmarkId::new("histogram", i),
             &i,
