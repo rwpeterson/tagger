@@ -1,20 +1,19 @@
-//! Serialization of time tag objects, supporting `.tags` and `.tsv`
+//! Serialization of time tag objects, supporting `.tags.zst` and `.tsv`
 
 use crate::Tag;
 use anyhow::Result;
-use capnp::{message, serialize};
+use capnp::{message, serialize, serialize_packed};
 use std::io::Write;
 use tagger_capnp::tags_capnp::tags;
 use zstd::stream;
 
-/// Serialize to .tags format: zstd-compressed Cap'n Proto tags
+/// Serialize to .tags.zst format: zstd-compressed Cap'n Proto tags
 ///
-/// Like many compressors, `zstd`'s API is linear under concatenation, in that
+/// Like many compressors, `zstd` is "linear" under concatenation, in that
 /// `zstd(m1 + m2) == zstd(m1) + zstd(m2)` (ignoring that the compressed bytes
 /// will actually differ as they cannot be compressed across the boundary). So
-/// while we write repeated compressed messages when saving data, it suffices
-/// to compress them individually. Later processing can transparently rewrite
-/// them to a single message.
+/// while we repeatedly write compressed messages when saving data, they can be
+/// uncompressed and read as if they were a single one.
 pub fn tags(wtr: &mut impl Write, tags: &[Tag]) -> Result<()> {
     let mut zwtr = stream::write::Encoder::new(wtr, 0)?;
     tags_uncompressed(&mut zwtr, tags)?;
@@ -22,10 +21,24 @@ pub fn tags(wtr: &mut impl Write, tags: &[Tag]) -> Result<()> {
     Ok(())
 }
 
-/// Serialize to uncompressed, unpacked Cap'n Proto tags
+/// Serialize to .tags: uncompressed, unpacked Cap'n Proto tags
 pub fn tags_uncompressed(wtr: &mut impl Write, tags: &[Tag]) -> Result<()> {
     let message = newmsg(&tags);
     serialize::write_message(wtr, &message)?;
+    Ok(())
+}
+
+/// Vary packing and compression level for benchmarks
+pub fn tags_bench(wtr: &mut impl Write, tags: &[Tag], pack: bool, level: i32) -> Result<()> {
+    let message = newmsg(&tags);
+    let mut zwtr = stream::write::Encoder::new(wtr, level)?;
+
+    if pack {
+        serialize_packed::write_message(&mut zwtr, &message)?;
+    } else {
+        serialize::write_message(&mut zwtr, &message)?;
+    }
+    zwtr.finish()?;
     Ok(())
 }
 

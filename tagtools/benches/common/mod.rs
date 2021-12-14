@@ -1,4 +1,4 @@
-#[allow(dead_code)]
+#![allow(dead_code)]
 
 use csv::ReaderBuilder;
 use tagtools::de;
@@ -22,6 +22,13 @@ pub fn load_test_data() -> Vec<Tag> {
         .from_reader(zrdr);
     let tags = de::tsv(&mut crdr).unwrap();
     return tags;
+}
+
+pub fn load_test_data_short() -> Vec<Tag> {
+    let mut tags = load_test_data();
+    tags.truncate(1000);
+    tags.shrink_to_fit();
+    tags
 }
 
 pub fn load_coincidence_histogram() -> Vec<Bin<f64, u64>> {
