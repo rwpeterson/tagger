@@ -82,7 +82,7 @@ pub fn fillmsg<'a, A>(
         for (j, tag) in chunk.iter().enumerate() {
             let mut tag_builder = chunk_builder.reborrow().get(j as u32);
             tag_builder.set_time(tag.time);
-            tag_builder.set_channel(tag.channel)
+            tag_builder.set_channel(tag.channel.into())
         }
     }
 }

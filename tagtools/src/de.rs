@@ -51,7 +51,7 @@ pub fn tags_uncompressed(rdr: &mut impl Read) -> Result<Vec<Tag>> {
 
         for chunk in tags_reader.get_tags()?.iter() {
             for tag in chunk?.iter() {
-                tags.push(Tag { time: tag.get_time(), channel: tag.get_channel() })
+                tags.push(Tag { time: tag.get_time(), channel: tag.get_channel() as u8 })
             }
         }
     }
@@ -79,7 +79,7 @@ fn tags_uncompressed_packed(rdr: &mut impl Read) -> Result<Vec<Tag>> {
 
         for chunk in tags_reader.get_tags()?.iter() {
             for tag in chunk?.iter() {
-                tags.push(Tag { time: tag.get_time(), channel: tag.get_channel() })
+                tags.push(Tag { time: tag.get_time(), channel: tag.get_channel() as u8 })
             }
         }
     }

@@ -188,8 +188,8 @@ pub mod tags {
         self.reader.get_data_field::<i64>(0)
       }
       #[inline]
-      pub fn get_channel(self) -> u8 {
-        self.reader.get_data_field::<u8>(8)
+      pub fn get_channel(self) -> u64 {
+        self.reader.get_data_field::<u64>(1)
       }
     }
 
@@ -250,12 +250,12 @@ pub mod tags {
         self.builder.set_data_field::<i64>(0, value);
       }
       #[inline]
-      pub fn get_channel(self) -> u8 {
-        self.builder.get_data_field::<u8>(8)
+      pub fn get_channel(self) -> u64 {
+        self.builder.get_data_field::<u64>(1)
       }
       #[inline]
-      pub fn set_channel(&mut self, value: u8)  {
-        self.builder.set_data_field::<u8>(8, value);
+      pub fn set_channel(&mut self, value: u64)  {
+        self.builder.set_data_field::<u64>(1, value);
       }
     }
 

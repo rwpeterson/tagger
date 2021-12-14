@@ -376,7 +376,7 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
                                     for (i, tag) in tags.iter().enumerate() {
                                         let mut tag_bdr = inner_bdr.reborrow().get(i as u32);
                                         tag_bdr.reborrow().set_time(tag.time);
-                                        tag_bdr.reborrow().set_channel(tag.channel);
+                                        tag_bdr.reborrow().set_channel(tag.channel.into());
                                     }
 
                                     let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);

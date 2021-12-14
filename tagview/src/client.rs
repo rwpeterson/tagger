@@ -100,7 +100,7 @@ impl subscriber::Server<service_pub::Owned> for SubscriberImpl {
                 for tag in pry!(chunk).iter() {
                     tags.push(Tag {
                         time: tag.get_time(),
-                        channel: tag.get_channel(),
+                        channel: tag.get_channel() as u8,
                     });
                 }
             }
