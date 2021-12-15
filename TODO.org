@@ -19,6 +19,7 @@
 Reimplement from ~coincidence_window~
 ** DONE ~pat::coincidence~ and ~pat::coincidence_window~ have different APIs
 * streamer
+** FEATURE impl logic mode control for no-tags applications
 ** DONE regularize logging with timestamps
 ** DONE change =set_fg= call to a command-line flag
 ** BUG discrepancy between duration and number of counts from function generator
