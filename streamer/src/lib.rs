@@ -8,7 +8,6 @@ pub mod timer;
 use argh::FromArgs;
 #[derive(Debug, FromArgs, Clone)]
 /// cli app args
-
 pub struct CliArgs {
     /// print version information
     #[argh(switch, short = 'v')]
@@ -22,6 +21,9 @@ pub struct CliArgs {
     /// calibrate time tagger
     #[argh(option, default = "false")]
     pub calibrate: bool,
+    /// logic mode
+    #[argh(switch, short = 'l')]
+    pub logic: bool,
     /// server address
     #[argh(option, default = "String::from(\"127.0.0.1:6969\")")]
     pub addr: String,
