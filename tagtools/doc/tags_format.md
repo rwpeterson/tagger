@@ -18,7 +18,7 @@ struct Tags @0xb1642a9902d01394 {  # 0 bytes, 1 ptrs
   tags @0 :List(List(Tag));  # ptr[0]
   struct Tag @0x8995b3a3aece585b {  # 16 bytes, 0 ptrs
     time @0 :Int64;  # bits[0, 64)
-    channel @1 :UInt8;  # bits[64, 72)
+    channel @1 :UInt64;  # bits[64, 128)
   }
 }
 ```
@@ -26,7 +26,9 @@ struct Tags @0xb1642a9902d01394 {  # 0 bytes, 1 ptrs
 The unique IDs and byte layout comments of the structs are automatically
 produced by the `capnpc` compiler, but are retained in the source to make
 it easier for someone with no knowledge of the format to hand-write a
-parser if need be.
+parser if need be. Because a `u8` channel might be somewhat limiting,
+in this schema I use a `u64` instead. As we will see, this has no overhead
+due to alignment, and future-proofs the format.
 
 You can generate code to work with the format with any supported language:
 all you need is the `tags.capnp` file. We use the default unpacked
