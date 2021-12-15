@@ -122,14 +122,18 @@ auto TimeTagger::use_10MHz(bool b) const -> void {
     impl->Use10MHz(b);
 }
 
+auto TimeTagger::get_impl() const -> std::shared_ptr<CTimeTag> {
+    return impl;
+}
+
 auto new_time_tagger() -> std::shared_ptr<TimeTagger> {
     return std::make_shared<TimeTagger>();
 }
 
-LogicCounter::LogicCounter()
-    : impl_tti(new CTimeTag)
+LogicCounter::LogicCounter(std::shared_ptr<TimeTagger> tt)
+    : impl_tti(tt->get_impl().get())
     , impl(new CLogic(impl_tti.get()))
-    {}
+{}
 
 auto LogicCounter::switch_logic_mode() const -> void {
     impl->SwitchLogicMode();
@@ -221,8 +225,8 @@ auto LogicCounter::use_10MHz(bool b) const -> void {
     impl_tti->Use10MHz(b);
 }
 
-std::shared_ptr<LogicCounter> new_logic_counter() {
-    return std::make_shared<LogicCounter>();
+auto new_logic_counter(std::shared_ptr<TimeTagger> tt) -> std::shared_ptr<LogicCounter> {
+    return std::make_shared<LogicCounter>(tt);
 }
 
 } // namespace TimeTag

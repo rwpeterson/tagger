@@ -168,7 +168,7 @@ pub mod ffi {
         // timetag methods removed
         fn use_10MHz(self: &LogicCounter, b: bool) -> ();
 
-        fn new_logic_counter() -> SharedPtr<LogicCounter>;
+        fn new_logic_counter(tt: SharedPtr<TimeTagger>) -> SharedPtr<LogicCounter>;
     }
 }
 

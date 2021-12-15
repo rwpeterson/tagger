@@ -40,8 +40,12 @@ public:
 
     // missing from CTimeTag.lib: TagsPresent()
 
+    // Indirection layer for accessing the underlying impl object,
+    // needed for "ergonomic" use of logic mode
+    auto get_impl() const -> std::shared_ptr<CTimeTag>;
+
 private:
-    std::unique_ptr<CTimeTag> impl;
+    std::shared_ptr<CTimeTag> impl;
     std::unique_ptr<ChannelType*> c;
     std::unique_ptr<TimeType*> t;
 };
@@ -50,7 +54,7 @@ std::shared_ptr<TimeTagger> new_time_tagger();
 
 class LogicCounter {
 public:
-    LogicCounter();
+    LogicCounter(std::shared_ptr<TimeTagger> tt);
 
     // Logic mode methods
     auto switch_logic_mode() const -> void;
@@ -82,10 +86,10 @@ public:
     auto use_10MHz(bool b) const -> void;
 
 private:
-    std::unique_ptr<CTimeTag> impl_tti;
-    std::unique_ptr<CLogic> impl;
+    std::shared_ptr<CTimeTag> impl_tti;
+    std::shared_ptr<CLogic> impl;
 };
 
-std::shared_ptr<LogicCounter> new_logic_counter();
+auto new_logic_counter(std::shared_ptr<TimeTagger> tt) -> std::shared_ptr<LogicCounter>;
 
 } // namespace TimeTag
