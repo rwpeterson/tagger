@@ -14,33 +14,35 @@ in one Cargo workspace. [Cargo][c] is Rust's package manager, and a
 that are grouped together, e.g. so that they share common library code
 in the same repository.
 
-## End-user crates
+## High-level overview
 
-### `streamer`
+### Data collection and instrument control
 
-Server program that controls the time tagger. Clients can subscribe to
-different types of data (raw time tags, counts in specified coincidence
-patterns, etc) simultaneously.
+- `streamer`: Server program that controls the time tagger and provides tags and
+  count information to clients
+- `tagview`: Interactive client program that displays current count rates,
+  controls input delays and thresholds, and so on
+- `tagsave`: Automated program that takes a .json specification of the
+  data you want to save, connects to a local or remote `streamer` server
+  to collect the data, then saves it as .json and (if requested) saves
+  the raw tags in compressed binary format alongside
 
-#### Why client/server?
+### Analysis and processing
 
-* A server on gigabit local network can stream tags to a separate client computer on the network
-* Multiple different clients can subscribe simultaneously, e.g.
-  - a GUI that displays current count rates
-  - a script that saves desired data, easily integrated into control code
-* If you have particular needs with your client, you can write your own using
-  the API specified in the capnp schema files.
+- `tcat`: decompresses and decodes our compressed binary format to tab-separated
+  values for use in other tools
+- `txt2tags`: compresses tab-separated time tag data into our compressed binary
+  format
 
-### `tagtools`
+## Why is instrument control and data collection use a client/server interface?
 
-Installs two helper utilities that convert from CSV to our compressed binary
-format (`txt2tags`) and from compressed binary format to CSV (`tcat`).
-
-### `tagview`
-
-Client program to connect to `streamer`. Visual monitoring of subscribed
-patterns and tagger status. TODO: Reads a file containing
-a list of patterns/acquisition times to automate saving data.
+- A server on gigabit local network can stream tags to a separate client computer on the network
+- Multiple different clients can subscribe simultaneously, e.g.
+  + a GUI that displays current count rates
+  + a script that saves desired data, easily integrated into control code
+- If you have particular needs with your client, you can write your own using
+  the API specified in the capnp schema files, without needing to reimplement
+  the instrument control
 
 ## Libraries
 
@@ -73,7 +75,56 @@ other Rust program directly call the C++ code to control the tagger. There is
 a small amount of overhead, but the library can still saturate the ~11 MHz data
 transfer rate of the USB 2.0 interface.
 
-## Getting started
+## Schematic overview of components
+
+```text
++-----------------+                   +----------------+
+|   Time tagger   |                   |   CTimeTag.h   |
+| vendor hardware |<---- USB 2.0 ---->| vendor library |
+|     (FPGA)      |                   |     (C++)      |
++-----------------+                   +----------------+
+                                           ^
+   vendor                                  |
+-----8<-----                               v
+this project       +-----------------------------------+
+                   |            taghelper.h            |
+                   | Smart pointer/std::vector wrapper |
+                   |              (C++)                |
+                   +-----------------------------------+
+                                          ^
+                                          | CXX FFI
+                                          v
++----------------------------+    +---------------------------+
+|          streamer          |    |         timetag           |
+| Time tagger control server |<-->| Rust bindings for library |
+|                            |    +---------------------------+
+| async runtime: tokio       |
+| RPC: Cap'n Proto           |
++----------------------------+            control computer
+                         ^             ----------8<-----------
+                         |             control comp. or remote
+                         |
+tag_server.capnp RPC API +-------------------+
+                         v                   v
++------------------------------+    +------------------------------+
+|           tagview            |    |          tagsave             |
+| tui-rs terminal ui/dashboard |    | automated instrument control |
+| interactive monitor/control  |    |     and data acquisition     |
++------------------------------+    +------------------------------+
+     ^                                ^                     |
+     | interactively tune delays,     | load specification  | save summary data, metadata
+     | thresholds, etc.               | of data to take     | and raw tags
+     v                                |                     +-----------------+
+   +-------------+                 +-------------+          |                 |
+   | myexpt.json |---------------->| myexpt.json |          v                 |
+   +-------------+ finalize data   +-------------+     +------------------+   |
+                   run parameters                      | myexpt_1234.json |   v
+                                                       +------------------+------+
+                                                          | myexpt_1234.tags.zst |
+                                                          +----------------------+
+```
+
+## Getting started with development
 
 ### Install Rust toolchain
 
@@ -101,20 +152,22 @@ For Debian/Ubuntu:
 
 Other distributions will vary.
 
-
 #### Proprietary vendor libraries (time tagger control only)
 
 Download the [vendor libraries][q] to copy over in a later step.
 
 Note: Because these libraries cannot be freely distributed by me, the entire installation
 process is somewhat complicated. Sorry. If you are not doing time tagger control at all
-(or even just on a client-only computer), replace everything below with the one-liner
+(or even just on a client-only computer), you don't need to install these
+libraries; replace everything below with the one-liner
 `cargo install --git https://git.sr.ht/~rwp/tagger <crate>` for each crate you want to (re)install.
 
 #### capnproto (optional; you are probably not doing this)
 
 Install [capnp][p] if using your own non-Rust (e.g. Python) code to use the capnp APIs,
-or if you are modifying/extending the schema and need to regenerate Rust code.
+or if you are modifying/extending the schema and need to regenerate Rust code. Generated
+code is checked into the repository, so for most purposes it is not necessary to install
+the capnp tool.
 
 ### Installation
 
@@ -131,7 +184,7 @@ Open a shell. Using [git][g], clone the repository locally and change directory 
         cd tagger
 
 The repository is now located in `/home/<user>/git/tagger`. All further commands are assumed to
-be in this directory (or whereever else you put it).
+be in this directory (or wherever else you put it).
 
 #### Copy over vendor libraries
 
@@ -181,6 +234,11 @@ yet seem to be a standard way to cite a repository. Try something like this:
 ```text
 Time tag analysis tools. Commit 98e1ccc. https://git.sr.ht/~rwp/tagger
 ```
+
+Additionally, the tools are all versioned, which is tracked in git with a tag,
+which associates something like "v1.0.0" with a specific commit. This information
+is also compiled into the programs so, for example, `tcat --version` will report
+the version as well.
 
 Later I may mirror the repository on a host that specializes in long-term data preservation.
 At that time I'll update this document. There should be the possibility of associating a DOI
