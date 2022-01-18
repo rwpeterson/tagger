@@ -1,31 +1,28 @@
+use either::Either;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use tagtools::{bit, pat, Tag};
 
 pub const WIN_DEFAULT: u32 = 1;
 
-#[allow(dead_code)]
-pub struct TagPattern {
-    tagmask: u16,
-    duration: u64,
-    tags: Vec<Tag>,
+pub struct RawTags {
+    pub dur: u64,
+    pub tags: Arc<Vec<Tag>>,
 }
 
-#[allow(dead_code)]
-pub struct LogicPattern {
-    patmask: u16,
-    duration: u64,
-    count: u64
+pub struct TagData {
+    pub dur: u64,
+    pub tags: Arc<Vec<Tag>>,
+    pub counts: HashMap<(u16, Option<u32>), u64>,
 }
 
-/// Data from the tagger that needs to be passed between the controller and server.
-/// Due to the size involved, we immediately create the capnp message for the tags
-/// instead of passing them back and forth in memory several times first.
-pub struct PubData {
-    pub duration: u64,
-    pub tags: Vec<Tag>,
-    pub patcounts: HashMap<u16,u64>,
+pub struct LogicData {
+    pub dur: u64,
+    pub counts: HashMap<(u16, Option<u32>), u64>,
 }
 
+pub type RawData = Either<RawTags, LogicData>;
+pub type PubData = Either<TagData, LogicData>;
 
 /// Calculate the counts in a set of pattern masks, doing the calculations in parallel
 pub fn count_patterns(tags: &[Tag], patmasks: HashSet<(u16, Option<u32>)>) -> HashMap<(u16, Option<u32>), u64> {

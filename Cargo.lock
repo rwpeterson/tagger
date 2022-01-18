@@ -1326,6 +1326,7 @@ dependencies = [
  "capnp",
  "capnp-rpc",
  "cxx",
+ "either",
  "flume",
  "futures",
  "git-version",

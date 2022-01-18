@@ -21,9 +21,12 @@ pub struct CliArgs {
     /// calibrate time tagger
     #[argh(option, default = "false")]
     pub calibrate: bool,
-    /// logic mode
+    /// logic mode (highly recommended: fix global window with --window)
     #[argh(switch, short = 'l')]
     pub logic: bool,
+    /// fixed global window for logic mode
+    #[argh(option, short = 'w', default = "0")]
+    pub window: u32,
     /// server address
     #[argh(option, default = "String::from(\"127.0.0.1:6969\")")]
     pub addr: String,
@@ -38,4 +41,5 @@ pub enum InputSetting {
     InversionMask(u16),
     Delay((u8, u32)),
     Threshold((u8, f64)),
+    Window(u32),
 }

@@ -5,13 +5,14 @@
 use capnp::capability::Promise;
 use capnp::message;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
+use either::Either;
 use futures::{AsyncReadExt, FutureExt};
 use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{
-    input_settings, publisher, service_pub, service_sub, subscriber, subscription,
+    input_settings, publisher, service_pub, service_sub, subscriber, subscription, Mode,
 };
 use tagtools::bit::BitOps;
 
@@ -78,27 +79,44 @@ struct PublisherImpl {
     cur_patmasks: Arc<RwLock<HashSet<(u16, Option<u32>)>>>,
 
     // State management of input properties
-    // (tagger API has individual setters and global getter)
+    // (tagger API has individual setters and global getter; vendor provides only setters)
     invmask: Arc<RwLock<u16>>,
     delays: Arc<RwLock<Vec<u32>>>,
     thresholds: Arc<RwLock<Vec<f64>>>,
 
+    // State management of global window for logic mode
+    global_window: Arc<RwLock<Option<u32>>>,
+
     // Send Event::Set commands to controller
     tx_controller: flume::Sender<Event>,
+
+    // CLI args which may override certain API options
+    args: CliArgs,
 }
 
 impl PublisherImpl {
     pub fn new(
         tx_controller: flume::Sender<Event>,
+        args: CliArgs,
     ) -> (
         PublisherImpl,
         Arc<Mutex<SubscriberMap>>,
         Arc<RwLock<u16>>,
         Arc<RwLock<HashSet<(u16, Option<u32>)>>>,
+        Arc<RwLock<Option<u32>>>,
     ) {
         let subscribers = Arc::new(Mutex::new(SubscriberMap::new()));
         let cur_tagmask = Arc::new(RwLock::new(0));
         let cur_patmasks = Arc::new(RwLock::new(HashSet::new()));
+        let global_window = match args.logic {
+            // In logic mode, there must be a global window state
+            true => match args.window {
+                0 => Arc::new(RwLock::new(Some(WIN_DEFAULT))),
+                x => Arc::new(RwLock::new(Some(x))),
+            }
+            // In tag mode, there is no need for a global window
+            false => Arc::new(RwLock::new(None)),
+        };
         (
             PublisherImpl {
                 next_id: 0,
@@ -108,11 +126,14 @@ impl PublisherImpl {
                 invmask: Arc::new(RwLock::new(0)),
                 delays: Arc::new(RwLock::new(vec![0; 16])),
                 thresholds: Arc::new(RwLock::new(vec![2.0; 16])),
+                global_window: global_window.clone(), 
                 tx_controller,
+                args,
             },
             subscribers.clone(),
             cur_tagmask.clone(),
             cur_patmasks.clone(),
+            global_window.clone(),
         )
     }
     pub fn update_masks(&mut self) {
@@ -161,7 +182,20 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                         let wd = lrdr.reborrow().get_window();
                         match wd {
                             0 => (pm, None),
-                            w => (pm, Some(w)),
+                            w => match self.args.window {
+                                0 => {
+                                    // Accept window as new global window
+                                    let mut gw = self.global_window.write();
+                                    *gw = Some(w);
+                                    (pm, None)
+                                }
+                                _ => {
+                                    // Ignore requested window for subscription,
+                                    // e.g. when in logic mode and there can only be one
+                                    // Must use dedicated get/set for global window
+                                    (pm, None)
+                                }
+                            },
                         }
                     })
                     .collect();
@@ -271,6 +305,65 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
 
         Promise::ok(())
     }
+
+    fn query_mode(
+        &mut self,
+        _params: publisher::QueryModeParams<::capnp::any_pointer::Owned>,
+        mut results: publisher::QueryModeResults<::capnp::any_pointer::Owned>,
+    ) -> capnp::capability::Promise<(), capnp::Error> {
+        let span = span!(Level::INFO, "query_mode");
+        let _enter = span.enter();
+        match self.args.logic {
+            // tag mode
+            false => {
+                info!("Operating in timetag mode");
+                results.get().set_m(Mode::Timetag)
+            },
+            // logic mode
+            true => {
+                info!("Operating in logic mode");
+                results.get().set_m(Mode::Logic)
+            },
+        }
+        Promise::ok(())
+    }
+
+    fn set_window(
+        &mut self,
+        params: publisher::SetWindowParams<::capnp::any_pointer::Owned>,
+        _results: publisher::SetWindowResults<::capnp::any_pointer::Owned>,
+    ) -> capnp::capability::Promise<(), capnp::Error> {
+        let span = span!(Level::INFO, "set_window");
+        let _enter = span.enter();
+        let rdr = pry!(params.get());
+        let w = rdr.get_w();
+        let mut gw = self.global_window.write();
+        *gw = Some(w);
+        self.tx_controller.send(Event::Set(InputSetting::Window(w))).unwrap();
+        info!("Set global window to {}", w);
+        Promise::ok(())
+    }
+
+    fn get_window(
+        &mut self,
+        _params: publisher::GetWindowParams<::capnp::any_pointer::Owned>,
+        mut results: publisher::GetWindowResults<::capnp::any_pointer::Owned>,
+    ) -> capnp::capability::Promise<(), capnp::Error> {
+        let span = span!(Level::INFO, "get_window");
+        let _enter = span.enter();
+        let gw = self.global_window.read();
+        match *gw {
+            Some(w) => {
+                info!("Global window is {}", w);
+                results.get().set_w(w);
+            },
+            None => {
+                info!("There is no global window active");
+                results.get().set_w(0);
+            },
+        }
+        Promise::ok(())
+    }
 }
 
 pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
@@ -292,15 +385,31 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     tokio::task::LocalSet::new()
         .run_until(async move {
             let listener = tokio::net::TcpListener::bind(&addr).await?;
-            let (publisher_impl, subscribers, cur_tagmask, cur_patmasks) =
-                PublisherImpl::new(sender_event.clone());
+            let (
+                publisher_impl,
+                subscribers,
+                cur_tagmask,
+                cur_patmasks,
+                global_window,
+            ) = PublisherImpl::new(sender_event.clone(), args.clone());
             let publisher: publisher::Client<_> = capnp_rpc::new_client(publisher_impl);
 
             // spawn controller thread
             let (sender_raw, receiver_raw) = flume::bounded(5);
             let shutdown_sender_2 = shutdown_sender.clone();
+            let (ct, cp, gw) =
+            (cur_tagmask.clone(), cur_patmasks.clone(), global_window.clone());
             std::thread::spawn(move || {
-                let cs = crate::controller::main(args, receiver_timer, receiver_event, sender_raw);
+                let cs =
+                    crate::controller::main(
+                        args,
+                        receiver_timer,
+                        receiver_event,
+                        sender_raw,
+                        ct,
+                        cp,
+                        gw,
+                    );
                 match cs {
                     Ok(()) => {}
                     Err(_) => {
@@ -309,7 +418,6 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
 
-            //copier::main(receiver_raw, sender_tag)?;
             let (sender_proc, receiver_proc) = flume::unbounded();
             processor::main(
                 receiver_raw,
@@ -356,7 +464,13 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
                         let mut alloc = message::ScratchSpaceHeapAllocator::new(
                             capnp::Word::words_to_bytes_mut(&mut b),
                         );
-                        while let Ok((dur, tags, patcounts)) = receiver_proc.recv_async().await {
+                        let emptyvec = Arc::new(Vec::new());
+                        while let Ok(pubdata) = receiver_proc.recv_async().await {
+                            let (dur, tags, patcounts) = match pubdata {
+                                Either::Left(t) => (t.dur, t.tags.clone(), t.counts),
+                                Either::Right(l) => (l.dur, emptyvec.clone(), l.counts),
+                            };
+
                             let subscribers1 = subscribers.clone();
                             let subs = &mut subscribers.lock().subscribers;
 
