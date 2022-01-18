@@ -1,6 +1,7 @@
 pub mod controller;
 pub mod data;
 pub mod processor;
+pub mod rpc;
 pub mod server;
 pub mod timer;
 
