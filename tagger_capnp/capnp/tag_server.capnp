@@ -25,11 +25,21 @@ interface Publisher(T) {
     setInput @1 (s :InputSettings) -> ();
     # Get properties of all channels
     getInputs @2 () -> (s :InputState);
+    # Query mode
+    queryMode @3 () -> (m :Mode);
+    # Set/get global window (logic mode only)
+    setWindow @4 (w :UInt32) -> ();
+    getWindow @5 () -> (w :UInt32);
 }
 
 interface Subscriber(T) {
     # Subscriber should return from this message when it is ready to process the next one
     pushMessage @0 (message :T) -> ();
+}
+
+enum Mode {
+    timetag @0;
+    logic   @1;
 }
 
 struct InputState {
