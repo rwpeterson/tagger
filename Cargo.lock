@@ -1320,6 +1320,7 @@ dependencies = [
 name = "streamer"
 version = "0.1.0"
 dependencies = [
+ "ansi_term",
  "anyhow",
  "argh",
  "bit-iter",
