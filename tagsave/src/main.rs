@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use chrono::Local;
+use chrono::Utc;
 use indicatif::{ProgressBar, ProgressStyle};
 use tagsave::CliArgs;
 use parking_lot::Mutex;
@@ -63,7 +63,9 @@ async fn main() -> Result<()> {
     };
 
     // Timestamp to save under, reflect the beginning time rather than the end
-    let ts = Local::now();
+    let ts = Utc::now();
+    // This is the only cross-platform ISO 8601 compliant timestamp format
+    let path_ts = ts.format("%Y%m%dT%H%M%SZ").to_string();
 
     // Start progress bar
     let total = 65536;
@@ -78,15 +80,16 @@ async fn main() -> Result<()> {
     let tick_rate = Duration::from_millis(args.tick_rate);
 
     // Tags file path
-    let mut tags_stem = cfg_path
+    let tags_desc = cfg_path
         .as_path()
         .file_stem()
         .unwrap_or_else(|| std::ffi::OsStr::new("data"))
         .to_string_lossy()
         .to_string();
-    tags_stem.push('_');
-    let mut tags_name = String::from(&tags_stem);
-    tags_name.push_str(&ts.format("%F_%H-%M-%S").to_string());
+    let mut tags_name = String::new();
+    tags_name.push_str(&path_ts);
+    tags_name.push('_');
+    tags_name.push_str(&tags_desc);
     let mut tags_path = cfg_path.with_file_name(&tags_name);
     tags_path.set_extension("tags.zst");
 
@@ -105,7 +108,7 @@ async fn main() -> Result<()> {
     let filepath: Option<std::path::PathBuf> = Some(tags_path);
 
     let mut duration = 0u64;
-    let timestamp = Local::now();
+    let timestamp = Utc::now();
     
     let first_tick = Instant::now();
     let mut last_tick = first_tick;
@@ -245,15 +248,16 @@ async fn main() -> Result<()> {
 
     let json_record = serde_json::to_string_pretty(&record)?;
 
-    let mut rcd_stem = cfg_path
+    let rcd_desc = cfg_path
         .as_path()
         .file_stem()
         .unwrap_or_else(|| std::ffi::OsStr::new("data"))
         .to_string_lossy()
         .to_string();
-    rcd_stem.push('_');
-    let mut rcd_name = String::from(&rcd_stem);
-    rcd_name.push_str(&ts.format("%F_%H-%M-%S").to_string());
+    let mut rcd_name = String::new();
+    rcd_name.push_str(&path_ts);
+    rcd_name.push('_');
+    rcd_name.push_str(&rcd_desc);
     let mut rcd_path = cfg_path.with_file_name(&rcd_name);
     rcd_path.set_extension("json");
     {

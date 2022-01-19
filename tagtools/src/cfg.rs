@@ -1,6 +1,6 @@
 //! Configuration tools: formats for declaring and recording data
 
-use chrono::{DateTime, offset::Local};
+use chrono::{DateTime, offset::Utc};
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -39,17 +39,18 @@ use std::time::Duration;
 /// duration (in 5 ns increments) is recorded as an integer, leaving rates to be
 /// calculated in post. A timestamp of the run start is included for reference,
 /// along with the name string provided in the declaration. All channel settings
-/// are also recorded. `myrunfile.json -> myrunfile-<timestamp>.json`
+/// are also recorded. `myrunfile.json -> <timestamp>-myrunfile.json`, where
+/// `<timestamp>` is `%Y%m%dT%H%M%SZ`, e.g. "20220119T123501Z".
 ///
 /// ### Tag mode
 ///
 /// Currently, this only looks at `save_tags`: if true, it will save all tags to a file
-/// named `myrunfile-<timestamp>.tags.zst`, which is additionally specified in
-/// `SaveTags::TagFile` inside `myrunfile-<timestamp>.json`.
+/// named `<timestamp>-myrunfile.tags.zst`. This filename is additionally specified in
+/// `SaveTags::TagFile` inside `<timestamp>-myrunfile-.json`.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Run {
     pub description:        String,
-    pub timestamp:          Option<DateTime<Local>>,
+    pub timestamp:          Option<DateTime<Utc>>,
     pub limit:              Option<RunLimit>,
     pub save_counts:        Option<bool>,
     pub save_tags:          Option<SaveTags>,

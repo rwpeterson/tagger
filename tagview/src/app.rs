@@ -522,7 +522,7 @@ impl<'a> App<'a> {
                 }
             }
             if changed {
-                let ts = chrono::Local::now();
+                let ts = chrono::Utc::now();
                 let mut new_stem = self.config_path
                     .as_path()
                     .file_stem()
@@ -530,7 +530,7 @@ impl<'a> App<'a> {
                     .to_string_lossy()
                     .to_string();
                 new_stem.push_str("_mod_");
-                new_stem.push_str(&ts.format("%F_%H-%M-%S").to_string());
+                new_stem.push_str(&ts.format("%Y%m%dT%H%M%SZ").to_string());
                 let mut new_path = self.config_path.clone().with_file_name(new_stem);
                 new_path.set_extension("json");
                 match (|| {

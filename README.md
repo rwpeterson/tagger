@@ -34,11 +34,13 @@ in the same repository.
 - `txt2tags`: compresses tab-separated time tag data into our compressed binary
   format
 
-## Why is instrument control and data collection use a client/server interface?
+## Why does instrument control and data collection use a client/server interface?
 
 - A server on gigabit local network can stream tags to a separate client computer on the network
+  + See [iperf](https://linux.die.net/man/1/iperf) for a command line tool to test your
+    local network's speed
 - Multiple different clients can subscribe simultaneously, e.g.
-  + a GUI that displays current count rates
+  + a GUI that displays current count rates for interative use and monitoring
   + a script that saves desired data, easily integrated into control code
 - If you have particular needs with your client, you can write your own using
   the API specified in the capnp schema files, without needing to reimplement
@@ -117,14 +119,48 @@ tag_server.capnp RPC API +-------------------+
      v                                |                     +-----------------+
    +-------------+                 +-------------+          |                 |
    | myexpt.json |---------------->| myexpt.json |          v                 |
-   +-------------+ finalize data   +-------------+     +------------------+   |
-                   run parameters                      | myexpt_1234.json |   v
-                                                       +------------------+------+
-                                                          | myexpt_1234.tags.zst |
-                                                          +----------------------+
+   +-------------+ finalize data   +-------------+     +------------------------------+
+                   run parameters                      | 20220119T123501Z_myexpt.json |
+                                                       +------------------------------+------+
+                                                          | 20220119T123501Z_myexpt.tags.zst |
+                                                          +----------------------------------+
 ```
 
-## Getting started with development
+## Concept of how data is saved
+
+Programs that accept a configuration, e.g. `myexpt.json`, will save data in a
+consistent way. The file stem of the config, e.g. `myexpt`, will be prepended
+with a timestamp in the saved runfile, e.g. `20220119T123501Z_myexpt.json`.
+For details of the format, see
+[the documentation of the Rust code that reads the JSON format](./tagtools/src/cfg.rs).
+
+### About timestamps and their representation
+
+It is important to store date and time in a consistent format that will
+not cause unanticipated errors. The most prescriptive standard in regular use
+is RFC 3339, which is a profile of ISO 8601 (meaning a specific choice among
+various representation options permitted by ISO 8601).
+
+Sadly, a timestamp in a cross-platform filename cannot be RFC 3339 compliant as
+it mandates a ':', which is an illegal character in Windows. However, it can be
+ISO 8601 compliant if it uses no '-' or ':' separators. Further, we consistently
+use UTC to avoid the implicit assumption of a timezone (which must be explicitly
+denoted if used), and provide a standard that can be of use in the lab, e.g.
+with instruments which store the time but do not automatically adjust for DST,
+and are best left set to UTC.
+
+The format is as follows, using the [`date(1)`](https://linux.die.net/man/1/date) format:
+```
+%Y%m%dT%H%M%SZ
+20220119T123501Z
+```
+corresponding to the RFC-3339-compliant local time 2022-01-19 11:35:01+01:00,
+a.k.a. 11:35 CET in Vienna.
+
+Your programming language should have no trouble reading this timestamp using
+its standard library (typically called "datetime").
+
+## Getting started with development or installing from source
 
 ### Install Rust toolchain
 
@@ -177,45 +213,67 @@ These instructions are for Linux. In Windows, make directories and copy over fil
 
 Open a shell. Using [git][g], clone the repository locally and change directory into it
 
-        cd ~
-        mkdir git
-        cd git
-        git clone https://git.sr.ht/~rwp/tagger
-        cd tagger
+```sh
+cd ~
+mkdir code
+cd code
+git clone https://git.sr.ht/~rwp/tagger
+cd tagger
+```
 
-The repository is now located in `/home/<user>/git/tagger`. All further commands are assumed to
+The repository is now located in `/home/<user>/code/tagger`. All further commands are assumed to
 be in this directory (or wherever else you put it).
 
 #### Copy over vendor libraries
 
 If using for time tagger control, download and copy over [proprietary vendor libraries][q]
 
-        mkdir -p lib
-        cp /path/to/CTimeTagLib.lib lib  # Windows library
-        cp /path/to/libtimetag64.so lib  # Linux library
+```sh
+mkdir -p lib
+cp /path/to/CTimeTagLib.lib lib  # Windows library
+cp /path/to/libtimetag64.so lib  # Linux library
+```
+
+In Windows, the library is compiled into the binary (convenient but means you cannot redistribute it),
+while on Linux you may need to copy the library to a system lib folder as well:
+
+```sh
+sudo cp /path/to/libtimetag64.so /usr/lib
+```
 
 #### Compile and install the crates you want
 
 Pick which crates you want to install:
 
-        cargo install --path ./<crate>
-        cargo install --path ./streamer # for example
-        cargo install --path ./tagview  # etc...
+```sh
+cargo install --path ./<crate>
+cargo install --path ./streamer # for example
+cargo install --path ./tagview  # etc...
+```
 
-Installed crates will then be available in your shell's PATH, e.g. just run `tagview`/`tagview.exe`
+Installed crates will then be available in your shell's `PATH`, e.g. just run `tagview`
+on Linux or `tagview.exe` on Windows.
 
 #### Update/uninstall
 
 If you need to update, pull the changes via git and then reinstall everything
 
-        cd ~/git/tagger
-        git pull
-        cargo install --path ./<crate>
-        cargo install --path ./streamer # for example
+```sh
+cd ~/code/tagger
+git pull
+cargo install --path ./<crate>
+cargo install --path ./streamer # for example
+```
+verify the new version with
+```sh
+streamer --version
+```
 
 To uninstall, simply
 
-        cargo uninstall <crate>
+```sh
+cargo uninstall <crate>
+```
 
 ## License, commit ID, and data availability
 
@@ -232,7 +290,7 @@ requirements, you should specify both the repository and the commit ID you used.
 yet seem to be a standard way to cite a repository. Try something like this:
 
 ```text
-Time tag analysis tools. Commit 98e1ccc. https://git.sr.ht/~rwp/tagger
+Time tag analysis tools. Version 1.0.0, Commit abcd123. https://git.sr.ht/~rwp/tagger
 ```
 
 Additionally, the tools are all versioned, which is tracked in git with a tag,
