@@ -24,12 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(())
     }
 
-    // ansi_term (used by tracing for output) requires explicitly-enabled ANSI support on Windows
-    // https://github.com/tokio-rs/tracing/issues/445
-    // https://github.com/ogham/rust-ansi-term#basic-usage
-    if cfg!(windows) {
-        ansi_term::enable_ansi_support().unwrap();
-    }
+    // Needed to make ansi escape codes work on Windows 10
+    // Will likely panic on earlier versions of Windows
+    enable_ansi_support::enable_ansi_support().unwrap();
 
     tracing_subscriber::fmt::init();
 

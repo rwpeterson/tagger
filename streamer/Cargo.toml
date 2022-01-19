@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ansi_term = "0.12"
 anyhow = "1.0"
 argh = "0.1"
 bit-iter = "1.1"
@@ -14,6 +13,7 @@ capnp = "0.14"
 capnp-rpc = "0.14"
 cxx = "1.0"
 either = "1.6"
+enable-ansi-support = "0.1"
 flume = "0.10"
 futures = "0.3"
 git-version = "0.3"
