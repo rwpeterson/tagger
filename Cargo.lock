@@ -1318,7 +1318,7 @@ dependencies = [
 
 [[package]]
 name = "streamer"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -1360,7 +1360,7 @@ dependencies = [
 
 [[package]]
 name = "tagger_capnp"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1368,7 +1368,7 @@ dependencies = [
 
 [[package]]
 name = "tagsave"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "argh",
@@ -1391,7 +1391,7 @@ dependencies = [
 
 [[package]]
 name = "tagtools"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "argh",
@@ -1412,7 +1412,7 @@ dependencies = [
 
 [[package]]
 name = "tagview"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "argh",
@@ -1495,7 +1495,7 @@ dependencies = [
 
 [[package]]
 name = "timetag"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cxx",
  "cxx-build",

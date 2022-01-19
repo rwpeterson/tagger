@@ -1,6 +1,6 @@
 [package]
 name = "tagview"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -24,4 +24,4 @@ tagger_capnp = { path = "../tagger_capnp"}
 tagtools = { path = "../tagtools" }
 tokio = { version = "1.7", features = ["full"] }
 tokio-util = { version = "0.6", features = [ "compat"] }
-tui = {version = "0.16.0", features = ["crossterm"], default-features = false}
+tui = {version = "0.16", features = ["crossterm"], default-features = false}

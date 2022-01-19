@@ -1,6 +1,6 @@
 [package]
 name = "tagtools"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Bob Peterson <bob@rwp.is>"]
 edition = "2021"
 
