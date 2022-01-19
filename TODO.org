@@ -3,7 +3,7 @@
 ** DONE packaging and release procedure using cargo-xtask
 ** DONE coincidences are not registering
 ** DONE bump vendor version to v2.35
-** TODO bump to 1.0
+** DONE bump to 1.0
 * tagview
 ** DONE view channel settings
 ** DONE manipulate channel settings
@@ -19,7 +19,7 @@
 Reimplement from ~coincidence_window~
 ** DONE ~pat::coincidence~ and ~pat::coincidence_window~ have different APIs
 * streamer
-** FEATURE impl logic mode control for no-tags applications
+** DONE impl logic mode control for no-tags applications
 ** DONE regularize logging with timestamps
 ** DONE change =set_fg= call to a command-line flag
 ** BUG discrepancy between duration and number of counts from function generator
