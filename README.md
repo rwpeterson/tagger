@@ -291,6 +291,30 @@ To uninstall, simply
 cargo uninstall <crate>
 ```
 
+## Building a release
+
+Tarball releases containing all binaries can be produced using [cargo xtask][xt],
+which automates most of the build, tarball, compression, and checksum process.
+
+Checklist for bumping vX.Y.Z to vU.V.W:
+1. `git pull` to ensure you have the latest content
+2. `git branch` to check you are on `master`
+3. Bump the version number of all crates and commit this
+4. `rg X.Y.Z` to verify all versions bumped
+5. `git tag -a vU.V.W` to tag this commit, then write release notes
+6. use `git shortlog vX.Y.Z..HEAD` to generate changelist for release notes
+7. `git push --follow-tags` to push new commit(s) and tag to remote
+8. `cargo xtask dist` to build release tarballs
+9. For other architectures, `git pull`, `cargo xtask dist`, concat SHA256 files
+10. Upload all release tarballs and SHA256 to tag using web interface
+
+This project uses vendor libraries that cannot be redistributed. They are compiled into
+Windows builds of `streamer`, so `streamer.exe` is not redistributable. The `cargo xtask`
+script will automatically make both a complete, nonredistributable release suitable for internal
+use, and a redistributable version without `streamer.exe` that can be uploaded to the public repository. The Linux binaries do not contain vendor code and so can be distributed freely.
+
+[xt]: https://github.com/matklad/cargo-xtask/
+
 ## License, commit ID, and data availability
 
 Because you have a local copy of all the source code, you can keep track of the
