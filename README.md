@@ -188,18 +188,18 @@ For Debian/Ubuntu:
 sudo apt install build-essential
 ```
 
-**WARNING** To build you must have gcc 11 due to the C++20 features I use.
-Ubuntu 20.04 ships gcc 9. They do not backport newer gcc versions, so a ppa
-is necessary.
+**WARNING** To build you must have gcc version 10 or greater due to the C++20
+features I use. Ubuntu 20.04 ships gcc 9. They do not backport newer gcc versions,
+so a ppa is necessary.
 ```sh
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test
 sudo apt update
-sudo apt install g++-11
+sudo apt install g++-10
 ```
-You then need to set an environment variable to select g++-11 over the default g++,
+You then need to set an environment variable to select g++-10 over the default g++,
 which points to g++-9
 ```sh
-CXX=g++-11 cargo build --release
+CXX=g++-10 cargo build --release
 ```
 
 Other distributions will vary.
