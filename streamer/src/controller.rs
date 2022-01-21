@@ -117,7 +117,7 @@ pub fn main(
         let lc = new_logic_counter(tt.clone());
         lc.switch_logic_mode();
         let gw = global_window.read();
-        if args.window == 0 {
+        if let None = args.window {
             let span = span!(Level::WARN, "global window");
             let _enter = span.enter();
             warn!("It is recommended to set an explicit fixed window size in logic mode with --window");
@@ -188,9 +188,9 @@ pub fn main(
                             InputSetting::Threshold((ch, th)) => lc.set_input_threshold(ch, th),
                             InputSetting::Window(w) => match args.window {
                                 // Allow window change if not locked
-                                0 => lc.set_window_width(w),
+                                None => lc.set_window_width(w),
                                 // Otherwise ignore
-                                _ => {},
+                                Some(_) => {},
                             }
                         },
                     }

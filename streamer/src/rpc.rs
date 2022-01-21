@@ -100,8 +100,8 @@ impl PublisherImpl {
         let global_window = match args.logic {
             // In logic mode, there must be a global window state
             true => match args.window {
-                0 => Arc::new(RwLock::new(Some(WIN_DEFAULT))),
-                x => Arc::new(RwLock::new(Some(x))),
+                None => Arc::new(RwLock::new(Some(WIN_DEFAULT))),
+                Some(x) => Arc::new(RwLock::new(Some(x))),
             }
             // In tag mode, there is no need for a global window
             false => Arc::new(RwLock::new(None)),
@@ -170,15 +170,28 @@ impl publisher::Server<::capnp::any_pointer::Owned> for PublisherImpl {
                         let pm = lrdr.reborrow().get_patmask();
                         let wd = lrdr.reborrow().get_window();
                         match wd {
+                            // The subscriber doesn't specify, they get what they get
                             0 => (pm, None),
                             w => match self.args.window {
-                                0 => {
-                                    // Accept window as new global window
-                                    let mut gw = self.global_window.write();
-                                    *gw = Some(w);
-                                    (pm, None)
+                                None => {
+                                    match self.args.logic {
+                                        true => {
+                                            // Accept window as new global window
+                                            let mut gw = self.global_window.write();
+                                            if w == 0 {
+                                                *gw = Some(WIN_DEFAULT)
+                                            } else {
+                                                *gw = Some(w)
+                                            }
+                                            (pm, None)
+                                        },
+                                        false => {
+                                            // Any individual pattern can have whatever window it wants
+                                            (pm, Some(w))
+                                        }
+                                    }
                                 }
-                                _ => {
+                                Some(_) => {
                                     // Ignore requested window for subscription,
                                     // e.g. when in logic mode and there can only be one
                                     // Must use dedicated get/set for global window
