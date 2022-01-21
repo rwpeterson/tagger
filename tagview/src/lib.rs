@@ -8,7 +8,8 @@ pub mod ui;
 use argh::FromArgs;
 
 #[derive(Debug, FromArgs, Clone)]
-/// cli app args
+/// TUI tool to interactively view singles and coincidence rates, tune input
+/// parameters, and save modified settings for later use.
 pub struct Cli {
     /// tick period in ms
     #[argh(option, default = "250")]
@@ -23,6 +24,6 @@ pub struct Cli {
     #[argh(option, default = "String::from(\"127.0.0.1:6969\")")]
     pub addr: String,
     /// config file path
-    #[argh(option)]
-    pub config: Option<String>,
+    #[argh(positional)]
+    pub config: String,
 }

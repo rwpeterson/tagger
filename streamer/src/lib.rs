@@ -7,7 +7,7 @@ pub mod timer;
 
 use argh::FromArgs;
 #[derive(Debug, FromArgs, Clone)]
-/// cli app args
+/// Controller for time tagger that serves data over a Cap'n Proto RPC API
 pub struct CliArgs {
     /// print version information
     #[argh(switch, short = 'v')]

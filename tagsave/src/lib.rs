@@ -1,7 +1,7 @@
 use argh::FromArgs;
 
 #[derive(Debug, FromArgs, Clone)]
-/// cli app args
+/// CLI tool to save time tag and pattern count data using a declarative runfile
 pub struct CliArgs {
     /// print version information
     #[argh(switch, short = 'v')]
@@ -13,8 +13,8 @@ pub struct CliArgs {
     #[argh(option, default = "String::from(\"127.0.0.1:6969\")")]
     pub addr: String,
     /// config file path
-    #[argh(option)]
-    pub config: Option<String>,
+    #[argh(positional)]
+    pub config: String,
 }
 
 pub mod client;

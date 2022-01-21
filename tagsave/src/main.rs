@@ -44,23 +44,13 @@ async fn main() -> Result<()> {
         .expect("could not parse address");
 
     // Load the run file
-    if let None = args.config {
-        panic!("no runfile provided!");
+    let config: tagtools::cfg::Run;
+    let cfg_path = std::path::PathBuf::from(args.config.clone());
+    {
+        let f = File::open(cfg_path.as_path())?;
+        let rdr = BufReader::new(f);
+        config = serde_json::from_reader(rdr)?;
     }
-    let cfg_path;
-    let config;
-    match args.config {
-        Some(c) => {
-            cfg_path = std::path::PathBuf::from(c.clone());
-            let f = File::open(cfg_path.as_path())?;
-            let rdr = BufReader::new(f);
-            config = serde_json::from_reader(rdr)?;
-        },
-        None => {
-            cfg_path = std::path::PathBuf::from("data");
-            config = cfg::Run::default();
-        }
-    };
 
     // Timestamp to save under, reflect the beginning time rather than the end
     let ts = Utc::now();

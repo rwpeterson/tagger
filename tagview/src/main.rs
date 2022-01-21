@@ -77,7 +77,7 @@ fn main() -> Result<()> {
         .expect("could not parse address");
 
     // Process the config for subscription
-    let path = PathBuf::from(&args.config.unwrap_or("runfile_example.json".to_owned()));
+    let path = PathBuf::from(&args.config);
     let f = File::open(path.clone())?;
     let rdr = BufReader::new(f);
     let config: cfg::Run = serde_json::from_reader(rdr)?;
