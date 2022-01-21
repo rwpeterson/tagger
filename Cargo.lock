@@ -1412,6 +1412,8 @@ dependencies = [
  "chrono",
  "criterion",
  "csv",
+ "either",
+ "git-version",
  "humantime",
  "humantime-serde",
  "itertools",
