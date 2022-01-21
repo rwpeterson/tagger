@@ -8,8 +8,8 @@ use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::{AsyncReadExt, FutureExt};
 use parking_lot::Mutex;
 use std::sync::Arc;
-use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
-use tagtools::{bit::chans_to_mask, cfg, Tag};
+use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber, Mode};
+use tagtools::{bit::chans_to_mask, cfg::{self, SaveTags::Save, Single::Channel}, Tag};
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 
@@ -264,11 +264,37 @@ impl Client {
                 // Run the channel settings futures to completion first, before requesting data
                 futures::future::try_join_all(set_reqs).await?;
 
+                let mode_req = publisher.query_mode_request();
+                let mode_resp = mode_req.send().promise.await?;
+                let mode = mode_resp.get()?.get_m()?;
+                if let Mode::Logic = mode {
+                    if let Some(Save(true)) = config.save_tags {
+                        println!(
+                            "WARNING: You have requested tags but the time tagger is in logic mode",
+                        )
+                    }
+                }
+
                 // Assemble the service sub request
                 let mut data_req = publisher.subscribe_request();
                 data_req.get().reborrow().set_subscriber(sub);
-                let sbdr = data_req.get().init_services();
-                let mut pbdr = sbdr.init_patmasks().init_windowed(pats.len() as u32);
+                let mut sbdr = data_req.get().init_services();
+                if let Some(Save(true)) = config.save_tags {
+                    sbdr.reborrow().set_tagmask(
+                        if let Some(x) = config.tagmask {
+                            x
+                        } else {
+                            let chs: Vec<u8> = config.singles
+                                .iter()
+                                .filter_map(|s|
+                                    if let Channel(x) = s { Some(*x) } else { None }
+                                )
+                                .collect();
+                            tagtools::bit::chans_to_mask(&chs)
+                        }
+                    )
+                }
+                let mut pbdr = sbdr.reborrow().init_patmasks().init_windowed(pats.len() as u32);
                 for (i, (pat, win)) in pats.iter().enumerate() {
                     let mut lpbdr = pbdr.reborrow().get(i as u32);
                     lpbdr.reborrow().set_patmask(*pat);

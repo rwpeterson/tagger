@@ -139,15 +139,17 @@ pub async fn main(args: CliArgs) -> Result<(), Box<dyn std::error::Error>> {
                                     let mut msg = capnp::message::Builder::new(&mut alloc);
                                     let mut msg_bdr = msg.init_root::<service_pub::Builder>();
 
-                                    let mut tag_bdr = msg_bdr.reborrow().init_tags();
-                                    tag_bdr.reborrow().set_duration(dur);
-                                    tag_bdr.reborrow().set_tagmask(subscriber.tagmask);
-                                    let outer_bdr = tag_bdr.reborrow().init_tags().init_tags(1);
-                                    let mut inner_bdr = outer_bdr.init(0, tags.len() as u32);
-                                    for (i, tag) in tags.iter().enumerate() {
-                                        let mut tag_bdr = inner_bdr.reborrow().get(i as u32);
-                                        tag_bdr.reborrow().set_time(tag.time);
-                                        tag_bdr.reborrow().set_channel(tag.channel.into());
+                                    if subscriber.tagmask != 0 {
+                                        let mut tag_bdr = msg_bdr.reborrow().init_tags();
+                                        tag_bdr.reborrow().set_duration(dur);
+                                        tag_bdr.reborrow().set_tagmask(subscriber.tagmask);
+                                        let outer_bdr = tag_bdr.reborrow().init_tags().init_tags(1);
+                                        let mut inner_bdr = outer_bdr.init(0, tags.len() as u32);
+                                        for (i, tag) in tags.iter().enumerate() {
+                                            let mut tag_bdr = inner_bdr.reborrow().get(i as u32);
+                                            tag_bdr.reborrow().set_time(tag.time);
+                                            tag_bdr.reborrow().set_channel(tag.channel.into());
+                                        }
                                     }
 
                                     let mut pats_bdr = msg_bdr.init_pats(patcounts.len() as u32);

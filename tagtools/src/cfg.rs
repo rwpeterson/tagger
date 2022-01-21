@@ -54,6 +54,7 @@ pub struct Run {
     pub limit:              Option<RunLimit>,
     pub save_counts:        Option<bool>,
     pub save_tags:          Option<SaveTags>,
+    pub tagmask:            Option<u16>,
     pub duration:           Option<u64>,
     #[serde(default = "emptyvec", skip_serializing_if = "Vec::is_empty")]
     pub singles:            Vec<Single>,
@@ -118,11 +119,12 @@ fn emptyvec<T>() -> Vec<T> {
 impl Default for Run {
     fn default() -> Self {
         Run {
-            description:               String::new(),
+            description:        String::new(),
             timestamp:          None,
             limit:              None,
             save_counts:        None,
             save_tags:          None,
+            tagmask:            None,
             duration:           None,
             singles:            Vec::new(),
             coincidences:       Vec::new(),
