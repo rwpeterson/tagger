@@ -64,7 +64,7 @@ fn dist_binary() -> Result<(), DynError> {
         if !build_status.success() {
             panic!("cargo build failed")
         }
-    } else if cfg!(linux) {
+    } else if cfg!(target_os = "linux") {
         let build_status = Command::new(cargo)
             .env("CXX", "gcc-10")
             .current_dir(project_root())
@@ -77,7 +77,7 @@ fn dist_binary() -> Result<(), DynError> {
     let target =
         if cfg!(windows) {
             "x86_64-pc-windows-msvc"
-        } else if cfg!(linux) {
+        } else if cfg!(target_os = "linux") {
             "x86_64-unknown-linux-gnu"
         } else {
             panic!("dist supports only windows and linux targets")
