@@ -537,10 +537,14 @@ pub fn numfmt(num: f64, dec: usize) -> String {
         mantissa.truncate(dec + 2);
         return format!("{}{}", mantissa, exponent);
     } else {
-        let pidx = raw.find('.').unwrap();
-        let mut truncated = raw.to_string();
-        let d = if dec > 0 { dec + 1 } else { 0 };
-        truncated.truncate(pidx + d);
-        return truncated;
+        if let Some(pidx) = raw.find('.') {
+            let mut truncated = raw.to_string();
+            let d = if dec > 0 { dec + 1 } else { 0 };
+            truncated.truncate(pidx + d);
+            return truncated;
+        } else {
+            // no decimal, incl NaN and inf
+            return raw.to_string()
+        }
     }
 }
