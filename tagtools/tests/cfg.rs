@@ -19,6 +19,7 @@ fn serde_roundtrip() {
         timestamp: None,
         save_counts: Some(false),
         save_tags: Some(SaveTags::Save(false)),
+        tagmask: None,
         channel_settings: vec![
             ChannelSettings {
                 channel: 1,
