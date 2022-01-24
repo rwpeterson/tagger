@@ -277,9 +277,32 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
 }
 
 fn draw_counts_tab<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
+    let pats = app.pats.lock();
+    let ns = pats
+        .iter()
+        .filter_map(|(&p, _)| tagtools::bit::mask_to_single(p))
+        .count() as u16;
+    let nc = pats
+        .iter()
+        .filter_map(|(&p, _)| tagtools::bit::mask_to_pair(p))
+        .count() as u16;
+    drop(pats);
+    let ncols = 8;
+    let nrs = match ns % ncols {
+        0 => ns / ncols,
+        _ => ns / ncols + 1,
+    } as u16;
+    let nrc = match ns % ncols {
+        0 => nc / ncols,
+        _ => nc / ncols + 1,
+    } as u16;
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(4), Constraint::Min(1)].as_ref())
+        .constraints([
+            Constraint::Length(3 * nrs), // singles
+            Constraint::Length(3 * nrc), // coincidences
+            Constraint::Min(0),
+            ].as_ref())
         .split(area);
     draw_singles(f, app, chunks[0]);
     draw_coincidences(f, app, chunks[1]);
@@ -383,15 +406,22 @@ fn draw_singles<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
     for row in rc {
         for elem in row {
             if let Some((&m, &ct)) = chan_iter.next() {
-                let ch = bit_iter::BitIter::from(m).next().unwrap() + 1;
-                let rate = ct as f64 / (dur as f64 * 5e-9);
+                let ch = format!("{}", bit_iter::BitIter::from(m).next().unwrap() + 1);
+                let rate = numfmt(ct as f64 / (dur as f64 * 5e-9), 0);
+                let width = elem.width;
+                let padding = " ".repeat(width as usize - ch.len() - rate.len() - 3);
                 let text = Paragraph::new(Spans::from(vec![
                     Span::styled(
-                        format!("{:>2}", ch),
+                        ch,
                         Style::default().add_modifier(Modifier::BOLD | Modifier::DIM),
                     ),
-                    Span::styled(format!("{:>7.0}", rate), Style::default()),
-                ]));
+                    Span::raw(padding),
+                    Span::styled(
+                        rate,
+                        Style::default().fg(Color::Gray),
+                    ),
+                ]))
+                .block(Block::default().borders(Borders::ALL));
                 f.render_widget(text, elem);
             }
         }
@@ -444,7 +474,7 @@ fn draw_coincidences<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
                 let chs = format!("{0}-{1}", ch_b, ch_a);
                 let rate = numfmt(ct as f64 / (dur as f64 * 5e-9), 0);
                 let width = elem.width;
-                let padding = " ".repeat(width as usize - chs.len() - rate.len() - 1);
+                let padding = " ".repeat(width as usize - chs.len() - rate.len() - 3);
 
                 let text = Paragraph::new(Spans::from(vec![
                     Span::styled(
@@ -456,7 +486,8 @@ fn draw_coincidences<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
                         rate,
                         Style::default().fg(Color::Gray),
                     ),
-                ]));
+                ]))
+                .block(Block::default().borders(Borders::ALL));
                 f.render_widget(text, elem);
             }
         }
