@@ -8,7 +8,7 @@ use futures::{AsyncReadExt, FutureExt};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use tagger_capnp::tag_server_capnp::{publisher, service_pub, subscriber};
-use tagtools::{bit::chans_to_mask, Tag, cfg};
+use tagtools::{bit::chans_to_mask, Tag, cfg::{self, SaveTags::Save, Single::Channel}};
 use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 
@@ -183,7 +183,7 @@ impl Client {
                 let _ = tokio::task::spawn_local(Box::pin(rpc_system.map(|_| ())));
 
                 let mut pats: Vec<(u16, u32)> = Vec::new();
-                for s in config.singles {
+                for s in config.singles.clone() {
 
                     match s {
                         cfg::Single::Channel(ch) => {
@@ -209,7 +209,22 @@ impl Client {
                 // Assemble the request
                 let mut request = publisher.subscribe_request();
                 request.get().reborrow().set_subscriber(sub);
-                let sbdr = request.get().init_services();
+                let mut sbdr = request.get().init_services();
+                if let Some(Save(true)) = config.save_tags {
+                    sbdr.reborrow().set_tagmask(
+                        if let Some(x) = config.tagmask {
+                            x
+                        } else {
+                            let chs: Vec<u8> = config.singles
+                                .iter()
+                                .filter_map(|s|
+                                    if let Channel(x) = s { Some(*x) } else { None }
+                                )
+                                .collect();
+                            tagtools::bit::chans_to_mask(&chs)
+                        }
+                    )
+                }
                 let mut pbdr = sbdr.init_patmasks().init_windowed(pats.len() as u32);
                 for (i, &(pat, win)) in pats.iter().enumerate() {
                     let mut lpbdr = pbdr.reborrow().get(i as u32);
