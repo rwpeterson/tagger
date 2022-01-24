@@ -575,7 +575,12 @@ impl<'a> App<'a> {
         (*pats).clear();
         if let Some(data) = newdata {
             for mut chunk in data {
-                self.duration += chunk.tagpat.duration;
+                let d = if let Some(p) = chunk.pats.first() {
+                    p.duration
+                } else {
+                    chunk.tagpat.duration
+                };
+                self.duration += d;
                 (*tags).append(&mut chunk.tagpat.tags);
                 for lpat in chunk.pats {
                     if let None = (*pats).get(&lpat.patmask) {
