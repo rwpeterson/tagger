@@ -299,14 +299,15 @@ which automates most of the build, tarball, compression, and checksum process.
 Checklist for bumping vX.Y.Z to vU.V.W:
 1. `git pull` to ensure you have the latest content
 2. `git branch` to check you are on `master`
-3. Bump the version number of all crates and commit this
-4. `rg X.Y.Z` to verify all versions bumped
-5. `git tag -a vU.V.W` to tag this commit, then write release notes
-6. use `git shortlog vX.Y.Z..HEAD` to generate changelist for release notes
-7. `git push --follow-tags` to push new commit(s) and tag to remote
-8. `cargo xtask dist` to build release tarballs
-9. For other architectures, `git pull`, `cargo xtask dist`, concat SHA256 files
-10. Upload all release tarballs and SHA256 to tag using web interface
+3. Run test suite
+4. Bump the version number of all crates and commit this
+5. `rg X.Y.Z` to verify all versions bumped
+6. `git tag -a vU.V.W` to tag this commit, then write release notes
+7. use `git shortlog vX.Y.Z..HEAD` to generate changelist for release notes
+8. `git push --follow-tags` to push new commit(s) and tag to remote
+9. `cargo xtask dist` to build release tarballs
+10. For other architectures, `git pull`, `cargo xtask dist`, concat SHA256 files
+11. Upload all release tarballs and SHA256 to tag using web interface
 
 This project uses vendor libraries that cannot be redistributed. They are compiled into
 Windows builds of `streamer`, so `streamer.exe` is not redistributable. The `cargo xtask`
