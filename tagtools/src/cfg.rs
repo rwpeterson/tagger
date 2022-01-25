@@ -49,7 +49,8 @@ use std::time::Duration;
 /// `SaveTags::TagFile` inside `<timestamp>-myrunfile-.json`.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Run {
-    /// Free space for user to describe run
+    /// Free space for user to describe run in more detail
+    #[serde(default = "emptystring", skip_serializing_if = "String::is_empty")]
     pub description:        String,
     /// Version of program when data is acquired
     #[serde(default = "emptystring", skip_serializing_if = "String::is_empty")]
