@@ -50,6 +50,8 @@ use std::time::Duration;
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Run {
     pub description:        String,
+    #[serde(default = "emptystring", skip_serializing_if = "String::is_empty")]
+    pub version:            String,
     pub timestamp:          Option<DateTime<Utc>>,
     pub limit:              Option<RunLimit>,
     pub save_counts:        Option<bool>,
@@ -115,11 +117,16 @@ fn emptyvec<T>() -> Vec<T> {
     Vec::new()
 }
 
+fn emptystring() -> String {
+    String::new()
+}
+
 /// Creates an empty Run. Specific defaults should be implementation-dependent.
 impl Default for Run {
     fn default() -> Self {
         Run {
             description:        String::new(),
+            version:            String::new(),
             timestamp:          None,
             limit:              None,
             save_counts:        None,

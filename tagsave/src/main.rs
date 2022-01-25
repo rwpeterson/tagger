@@ -200,6 +200,7 @@ async fn main() -> Result<()> {
     let mut record = cfg::Run{
         // name:            from declaration
         timestamp:          Some(timestamp),
+        version:            String::from(GIT_VERSION),
         // limit:           from declaration
         // save_counts:     from declaration
         save_tags:          None,

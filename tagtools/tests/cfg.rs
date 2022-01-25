@@ -14,6 +14,7 @@ fn deserialize_config(config: &str) -> Run {
 fn serde_roundtrip() {
     let config = Run {
         description: String::from("test_settings_serde"),
+        version: String::new(),
         limit: None,
         duration: None,
         timestamp: None,
