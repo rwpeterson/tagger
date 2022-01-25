@@ -1,6 +1,6 @@
 [package]
 name = "timetag"
-version = "2.1.0"
+version = "2.2.0"
 authors = ["Bob Peterson <bob@rwp.is>"]
 edition = "2021"
 
