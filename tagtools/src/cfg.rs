@@ -49,19 +49,34 @@ use std::time::Duration;
 /// `SaveTags::TagFile` inside `<timestamp>-myrunfile-.json`.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Run {
+    /// Free space for user to describe run
     pub description:        String,
+    /// Version of program when data is acquired
     #[serde(default = "emptystring", skip_serializing_if = "String::is_empty")]
     pub version:            String,
+    /// Timestamp at beginning of data run
     pub timestamp:          Option<DateTime<Utc>>,
+    /// How long a data run should record for
     pub limit:              Option<RunLimit>,
+    /// Whether to save patterns
     pub save_counts:        Option<bool>,
+    /// Whether to save tags
     pub save_tags:          Option<SaveTags>,
+    /// Subset of tags to subscribe to (safe to leave unset,
+    /// implementations should in that case assemble a tagmask
+    /// from singles subscriptions)
     pub tagmask:            Option<u16>,
+    /// Exact duration of the data acquisition (in 5 ns steps)
     pub duration:           Option<u64>,
+    /// Singles channels to subscribe to or which have been measured
     #[serde(default = "emptyvec", skip_serializing_if = "Vec::is_empty")]
     pub singles:            Vec<Single>,
+    /// Coincidence patterns to subscribe to or which have been measured
     #[serde(default = "emptyvec", skip_serializing_if = "Vec::is_empty")]
     pub coincidences:       Vec<Coincidence>,
+    /// Input channel settings. Not that the tagger is stateful: specify
+    /// only what channels you need, without setting others to "default"
+    /// values which may interfere with other subscribers
     #[serde(default = "emptyvec", skip_serializing_if = "Vec::is_empty")]
     pub channel_settings:   Vec<ChannelSettings>,
 }
@@ -72,16 +87,22 @@ pub struct Run {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RunLimit {
+    /// Time duration, the most basic use
     #[serde(with = "humantime_serde")]
     Duration(Duration),
+    /// A total number of counts in some channel
     SinglesLimit(u8, u64),
+    /// A total number of coincidences between two channels
+    /// (currently with default windows size--beware!)
     CoincidenceLimit(u8, u8, u32, u64),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SaveTags {
+    /// Declaration of whether tags should be saved
     Save(bool),
+    /// If tags were saved, the filename of the raw tags alongside this .json file
     TagFile(PathBuf),
 }
 
@@ -89,7 +110,9 @@ pub enum SaveTags {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Single {
+    /// Single channel counts to subscribe to
     Channel(u8),
+    /// Number of events counted during the run
     ChannelCounts((u8, u64)),
 }
 
@@ -97,8 +120,20 @@ pub enum Single {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Coincidence {
+    /// Coincidence counts to subscribe to. No window is specified,
+    /// which either uses the default window size set by the tag
+    /// server, or the tunable global window size in logic mode
     Channels((u8, u8)),
+    /// Coincidence counts to subscribe to, with a specified window.
+    /// In tag mode, a pattern with one window can be simultaneously
+    /// subscribed to alongside a pattern with a different window.
+    /// In logic mode, there is one global window which the server
+    /// implementation may choose while ignoring the value set here.
+    /// (The actual value will be reported in the returned data.)
     ChannelsWin((u8, u8, u32)),
+    /// Number of coincidence events counted during the run, as well
+    /// as the actual window used, regardless of what was requested or
+    /// whether the server implementation chooses to honor that request.
     ChannelsCounts((u8, u8, u32, u64)),
 }
 
@@ -107,9 +142,13 @@ pub enum Coincidence {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct ChannelSettings {
+    /// Channel, 1-indexed
     pub channel:    u8,
+    /// Invert the rising edge logic to instead catch falling edge events?
     pub invert:     Option<bool>,
+    /// Delay the input by an integer number of tagtools::TSTEP
     pub delay:      Option<u32>,
+    /// Voltage threshold for event, -4 to 4 V
     pub threshold:  Option<f64>,
 }
 
