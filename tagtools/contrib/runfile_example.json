@@ -1,0 +1,23 @@
+{
+    "description": "an example runfile to use with the tagsave program",
+    "limit": {"duration": "5sec"},
+    "singles": [
+        {"channel": 1},
+        {"channel": 2},
+        {"channel": 3},
+        {"channel": 4}
+    ],
+    "coincidences": [
+        {"channels": [1, 2]},
+        {"channels": [2, 3]},
+        {"channels": [3, 4]},
+        {"channels": [4, 5]}
+    ],
+    "channel_settings": [
+        {"channel": 1, "invert": false, "delay": 0, "threshold": 2.0},
+        {"channel": 2, "threshold": 2.0},
+        {"channel": 3, "threshold": 2.0},
+        {"channel": 4, "threshold": 2.0},
+        {"channel": 5, "threshold": 2.0}
+    ]
+}
