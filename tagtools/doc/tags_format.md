@@ -28,7 +28,9 @@ produced by the `capnpc` compiler, but are retained in the source to make
 it easier for someone with no knowledge of the format to hand-write a
 parser if need be. Because a `u8` channel might be somewhat limiting,
 in this schema I use a `u64` instead. As we will see, this has no overhead
-due to alignment, and future-proofs the format.
+due to alignment, and future-proofs the format. Below, I still refer to it
+as a `u8` since this more closely matches the vendor's `unsigned char` type,
+and in practice deserialized channels are cast to `u8` anyway.
 
 You can generate code to work with the format with any supported language:
 all you need is the `tags.capnp` file. We use the default unpacked

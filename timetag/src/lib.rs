@@ -22,7 +22,8 @@
 //!         This copy is necessary due to          This copy is always necessary
 //!         indirection: Rust cannot access the    for application logic, even in
 //!         raw pointers directly, so data must    a pure C++ program, as data in
-//!         be copied into the wrapper class       the raw pointers is overwritten
+//!         be copied into a wrapper class         the raw pointers is overwritten
+//!         with appropriate ownership semantics   with new data
 //! ```
 //!
 //! Currently supported platforms are:

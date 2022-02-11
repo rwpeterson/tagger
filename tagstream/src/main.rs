@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use streamer::{CliArgs, server};
+use tagstream::{CliArgs, server};
 
 const GIT_VERSION: &str = git_version::git_version!();
 

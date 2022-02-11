@@ -1329,37 +1329,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "streamer"
-version = "2.2.0"
-dependencies = [
- "anyhow",
- "argh",
- "bit-iter",
- "capnp",
- "capnp-rpc",
- "cxx",
- "either",
- "enable-ansi-support",
- "flume",
- "futures",
- "git-version",
- "num",
- "parking_lot",
- "rand",
- "rayon",
- "ryu",
- "serde",
- "tagger_capnp",
- "tagtools",
- "timetag",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-futures",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "syn"
 version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1399,6 +1368,37 @@ dependencies = [
  "tagtools",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "tagstream"
+version = "2.2.0"
+dependencies = [
+ "anyhow",
+ "argh",
+ "bit-iter",
+ "capnp",
+ "capnp-rpc",
+ "cxx",
+ "either",
+ "enable-ansi-support",
+ "flume",
+ "futures",
+ "git-version",
+ "num",
+ "parking_lot",
+ "rand",
+ "rayon",
+ "ryu",
+ "serde",
+ "tagger_capnp",
+ "tagtools",
+ "timetag",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-futures",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -1,8 +1,11 @@
 # `tagger`
 
 A set of time tag analysis and control code written in Rust. Programs
-should work with both Windows and Linux (apart from some small command-line
-programs that are Linux-only).
+work with both Windows and Linux (x86_64 only).
+
+The end-user applications are available as binaries, but can also
+be compiled and ran from source. The libraries here can also be used
+in your own programs.
 
 If you are new to Rust, see Getting Started at the bottom.
 
@@ -16,21 +19,23 @@ in the same repository.
 
 ## High-level overview
 
+All applications support `--help` to display basic usage and command-line arguments
+
 ### Data collection and instrument control
 
-- `streamer`: Server program that controls the time tagger and provides tags and
+- `tagstream`: Server program that controls the time tagger and provides tags and
   count information to clients
 - `tagview`: Interactive client program that displays current count rates,
   controls input delays and thresholds, and so on
 - `tagsave`: Automated program that takes a .json specification of the
-  data you want to save, connects to a local or remote `streamer` server
+  data you want to save, connects to a local or remote `tagstream` server
   to collect the data, then saves it as .json and (if requested) saves
-  the raw tags in compressed binary format alongside
+  the raw tags in our compressed binary format alongside
 
 ### Analysis and processing
 
-- `tcat`: decompresses and decodes our compressed binary format to tab-separated
-  values for use in other tools
+- `tcat`: decompresses and decodes our [compressed binary format](tagtools/doc/tags_format.md)
+  to tab-separated values for use in other tools
 - `txt2tags`: compresses tab-separated time tag data into our compressed binary
   format
 
@@ -39,6 +44,8 @@ in the same repository.
 - A server on gigabit local network can stream tags to a separate client computer on the network
   + See [iperf](https://linux.die.net/man/1/iperf) for a command line tool to test your
     local network's speed
+  + A client computer on a slower LAN (or remote over the internet) can stream summary
+    statistics like pattern count rates, without raw tag data
 - Multiple different clients can subscribe simultaneously, e.g.
   + a GUI that displays current count rates for interative use and monitoring
   + a script that saves desired data, easily integrated into control code
@@ -48,7 +55,7 @@ in the same repository.
 
 ## Libraries
 
-### `tagger_capnp`
+### `tagger_capnp` ([readme](tagger_capnp/README.md))
 
 This crate stores schema files for our binary file formats, as well as the
 generated Rust code to work with them.
@@ -63,13 +70,13 @@ it to a binary format. Given a schema file defining the data structure, Cap'n Pr
 can programatically generate code to read and write this format in most major
 languages.
 
-### `tagtools`
+### `tagtools` ([readme](tagtools/README.md))
 
 `tagtools` covers tag serialization and analysis. This library is what reads and writes
 our binary tag file format. It also has coincidence, g2, and other analysis routines
 written in fast Rust, with integration tests to compare against known-good codes.
 
-### `timetag`
+### `timetag` ([lib.rs](timetag/src/lib.rs))
 
 `timetag` is a Rust wrapper for the `CTimeTag` and `CLogic` vendor C++ classes
 for interfacing with the [UQDevices Logic16][q] time tagger. This library lets
@@ -97,7 +104,7 @@ this project       +-----------------------------------+
                                           | CXX FFI
                                           v
 +----------------------------+    +---------------------------+
-|          streamer          |    |         timetag           |
+|         tagstream          |    |         timetag           |
 | Time tagger control server |<-->| Rust bindings for library |
 |                            |    +---------------------------+
 | async runtime: tokio       |
@@ -105,8 +112,8 @@ this project       +-----------------------------------+
 +----------------------------+            control computer
                          ^             ----------8<-----------
                          |             control comp. or remote
-                         |
-tag_server.capnp RPC API +-------------------+
+     tag_server.capnp    |
+         RPC API         +-------------------+
                          v                   v
 +------------------------------+    +------------------------------+
 |           tagview            |    |          tagsave             |
@@ -154,7 +161,7 @@ The format is as follows, using the [`date(1)`](https://linux.die.net/man/1/date
 %Y%m%dT%H%M%SZ
 20220119T123501Z
 ```
-corresponding to the RFC-3339-compliant local time 2022-01-19 11:35:01+01:00,
+corresponding to the RFC-3339-compliant UTC time 2022-01-19T12:35:01Z,
 a.k.a. 11:35 CET in Vienna.
 
 Your programming language should have no trouble reading this timestamp using
@@ -263,8 +270,8 @@ Pick which crates you want to install:
 
 ```sh
 cargo install --path ./<crate>
-cargo install --path ./streamer # for example
-cargo install --path ./tagview  # etc...
+cargo install --path ./tagstream # for example
+cargo install --path ./tagview   # etc...
 ```
 
 Installed crates will then be available in your shell's `PATH`, e.g. just run `tagview`
@@ -278,11 +285,11 @@ If you need to update, pull the changes via git and then reinstall everything
 cd ~/code/tagger
 git pull
 cargo install --path ./<crate>
-cargo install --path ./streamer # for example
+cargo install --path ./tagsave # for example
 ```
 verify the new version with
 ```sh
-streamer --version
+tagsave --version
 ```
 
 To uninstall, simply
@@ -310,9 +317,9 @@ Checklist for bumping vX.Y.Z to vU.V.W:
 11. Upload all release tarballs and SHA256 to tag using web interface
 
 This project uses vendor libraries that cannot be redistributed. They are compiled into
-Windows builds of `streamer`, so `streamer.exe` is not redistributable. The `cargo xtask`
+Windows builds of `tagstream`, so `tagstream.exe` is not redistributable. The `cargo xtask`
 script will automatically make both a complete, nonredistributable release suitable for internal
-use, and a redistributable version without `streamer.exe` that can be uploaded to the public repository. The Linux binaries do not contain vendor code and so can be distributed freely.
+use, and a redistributable version without `tagstream.exe` that can be uploaded to the public repository. The Linux binaries do not contain vendor code and so can be distributed freely.
 
 [xt]: https://github.com/matklad/cargo-xtask/
 

@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "streamer",
+    "tagstream",
     "timetag",
     "tagger_capnp",
     "tagsave",

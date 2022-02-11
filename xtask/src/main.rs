@@ -14,7 +14,7 @@ const GIT_VERSION: &str = git_version::git_version!();
 const BINARY_TARGETS: [&'static str; 6] = [
     "tagsave",
     "tagview",
-    "streamer",
+    "tagstream",
     "tcat",
     "txt2tags",
     "checkrun",
@@ -22,7 +22,7 @@ const BINARY_TARGETS: [&'static str; 6] = [
 
 // Executables that statically link proprietary vendor code
 const WINDOWS_NONDISTRIBUTABLE: [&'static str; 1] = [
-    "streamer",
+    "tagstream",
 ];
 
 type DynError = Box<dyn std::error::Error>;

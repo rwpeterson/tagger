@@ -4,8 +4,6 @@ A set of time tag analysis tools in Rust
 
 ## End-user applications for working with the [binary tags format](doc/tags_format.md)
 
-These work on Unix, not Windows (since Windows chokes on non-UTF8 bytes in stdin/stdout)
-
 ### `tcat`
 
 Convert compressed binary format to tab-separated values
@@ -15,7 +13,7 @@ tcat mydata.tags.zst > mydata.txt
 ```
 
 reads `mydata.tags.zst`, decompresses it, parses the binary format, and writes it to
-standard output as tab-separated values (the `> mydata.tags.zst` directs output to this
+standard output as tab-separated values (the `> mydata.txt` directs output to this
 file instead of the terminal).
 
 ### `txt2tags`
@@ -30,6 +28,10 @@ reads `mydata.txt` (tab-separated values of channel and timestamp), and writes i
 standard output (the `> mydata.tags.zst` directs output to this file instead of the
 terminal).
 
+Note that on Windows, you must use `-o` to specify the output file (rather than use stdout),
+e.g. `txt2tags mydata.txt -o mydata.tags.zst`, because due to a stdlib limitation, Rust cannot
+emit non-UTF8 bytes to standard output on Windows platforms.
+
 ### "I want to read your binary tags format, but I refuse to use your code"
 
 You can use the [`capnp`][cpt] program to decode the binary to a human-readable format:
@@ -39,7 +41,7 @@ zstd -d mydata.tags.zst # decompresses to mydata.tags
 capnp decode tags.capnp Tags < mydata.tags > mydata.txt
 ```
 
-## End-user applications for working with the experiment runfile format
+## End-user applications for working with the [experiment runfile format](src/cfg.rs)
 
 This format, defined in `tagtools::cfg::Run`, is a JSON file that can either specify
 the data to be taken in an experiment, or record the data that was taken. See the
@@ -55,7 +57,7 @@ checkrun myrunfile.json
 
 Exiting with no output means that the runfile parsed correctly.
 
-## Library
+## Library API
 
 To view the modules related to (de)serialization, bit manipulation of coincidence
 patterns, and analysis routines, it's simplest to use Cargo's built-in documentation
