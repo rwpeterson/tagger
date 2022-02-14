@@ -86,4 +86,17 @@ cargo test -p tagtools                               # normal
 cargo test -p tagtools -- --ignored --test-threads=1 # runs "ignored" tests too
 ```
 
+## Benchmarks
+
+[Criterion][crit] benches are provided to monitor the performance of the following components:
+
+- `BitOps` trait: bitwise set/clear/toggle/change/check operations, confirming
+  no overhead vs writing the literal bitwise operations
+- Coincidence algorithms: set intersection and single-delay histogram
+- Serialization: packed/unpacked Cap'n Proto message and zstd compression levels,
+  which inform default choices
+
+After running `cargo bench`, check out [the report](../target/criterion/report/index.html).
+
 [cpt]: https://capnproto.org/capnp-tool.html#decoding-messages
+[crit]: https://bheisler.github.io/criterion.rs/book/index.html
