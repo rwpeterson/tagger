@@ -31,6 +31,17 @@ All applications support `--help` to display basic usage and command-line argume
   data you want to save, connects to a local or remote `tagstream` server
   to collect the data, then saves it as .json and (if requested) saves
   the raw tags in our compressed binary format alongside
+  
+#### Screen capture
+
+If you want to see these programs in action, check out these asciicasts:
+
+[![tagstream](https://asciinema.org/a/468938.svg)](https://asciinema.org/a/468938)
+
+[![tagview](https://asciinema.org/a/468939.svg)](https://asciinema.org/a/468939)
+
+[![tagsave](https://asciinema.org/a/468940.svg)](https://asciinema.org/a/468940)
+
 
 ### Analysis and processing
 
