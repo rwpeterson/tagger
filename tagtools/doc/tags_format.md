@@ -6,6 +6,8 @@ We store tags on-disk using a schema implemented by [Cap'n Proto][c]
 gives some rationale for its design choices, and presents some
 benchmarks against other candidate formats.
 
+## What is the `tags.zst` format?
+
 These files consistently use the `.tags.zst` extension, and reference
 implementations of tools to work with them are in the `tagtools`
 crate. The `tags.capnp` file that defines the schema is in the
@@ -32,26 +34,59 @@ due to alignment, and future-proofs the format. Below, I still refer to it
 as a `u8` since this more closely matches the vendor's `unsigned char` type,
 and in practice deserialized channels are cast to `u8` anyway.
 
+## How do I use data saved in the `tags.zst` format?
+
+In addition to making our software easy to use, scientific work should
+be reproducible by others. This means that others should be able to use
+our software, as well as our data (even if they don't want to use our
+software to do it). Our format can be accessed in several ways, outlined
+below.
+
+### The easy way
+
+The simplest way is to use the provided `tcat` program, which decodes
+the data and outputs tab-separated values that are fully equivalent to
+how data has been stored before. This can also be used as part of an
+analysis script, so the decompressed tags don't need to take up extra
+space on your filesystem. The `txt2tags` program does the reverse,
+converting old data to the new format.
+
+```sh
+tcat mydata.tags.zst > mydata.txt
+```
+
+### "I don't want to use your program"
+
 You can generate code to work with the format with any supported language:
-all you need is the `tags.capnp` file. We use the default unpacked
+all you need is the `tags.capnp` file and the `capnp` compiler to generate
+the appropriate code for your language. We use the default unpacked
 serialization, and compress this further with Zstandard. You can use
 your preferred language's bindings to Zstandard, or decompress tags
 yourself with the `zstd` system utility before deserializing.
 
-If your language does not have Cap'n Proto support, `capnc` can tell
-you the bit layout of the message format, allowing you to write a parser
-yourself. For our schema, the format is easy to see in a hex editor:
-all data is organized in 64-bit words. At the beginning there is a
-message frame word describing how long the message is, a root struct
+You can even use the `capnp` program at the command line to decode any
+message to a human-readable format:
+
+```sh
+zstd -d mydata.tags.zst # decompresses to mydata.tags
+capnp decode tags.capnp Tags < mydata.tags > mydata.txt
+```
+
+`capnp` supports many languages, and is packaged in all major distros.
+
+### "I don't want to use anyone else's program either"
+
+If your language does not have Cap'n Proto support, `capnc` can tell you
+the bit layout of the message format (see above), allowing you to write
+a parser yourself. For our schema, the format is easy to see in a hex
+editor: all data is organized in 64-bit words. At the beginning there is
+a message frame word describing how long the message is, a root struct
 pointer word that points to subsequent data and pointer locations, a
 list pointer word that describes our list of tags, and a tag struct
-pointer word that describes each element of the list. Following this
-are two-word list elements of tags.
+pointer word that describes each element of the list. Following this are
+two-word list elements of tags.
 
-[c]: https://capnproto.org
-[z]: https://facebook.github.io/zstd/
-
-## The problem
+## Why was this specific format chosen?
 
 There are many different ways to store data, with different tradeoffs.
 One of the simplest is CSV, or comma-separated values. Historically
@@ -308,7 +343,7 @@ the closest equivalent to `Vec<Tag>`.
     time ./tsv_flatb tags_35M.tsv > tags_35M.fbtags # 12.525 sec
 
 The benchmark was ran twice (repeated in the order listed) to ensure
-there were no effects due to caching.
+there was no bias due to caching.
 
 |        Operation          | Time (s) | Size (MB) | Ratio |
 | :------------------------ | -------- | --------- | ----- |
@@ -347,3 +382,6 @@ find compressible information. Plus, it's easier to write a parser for
 the unpacked format since you don't need to implement that packing algorithm.
 As a comparison, we parse a CSV, read into memory, and write to CSV again. Including
 the same level of compression, it takes nearly twice as long.
+
+[c]: https://capnproto.org
+[z]: https://facebook.github.io/zstd/
