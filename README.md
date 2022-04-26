@@ -318,7 +318,7 @@ Checklist for bumping vX.Y.Z to vU.V.W:
 1. `git pull` to ensure you have the latest content
 2. `git branch` to check you are on `master`
 3. Run test suite
-4. Bump the version number of all crates and commit this
+4. Bump the version number of all crates and commit this `fd Cargo.toml | xargs -I _ sed -i 's/version = "X.Y.Z"/version = "U.V.W"/' _`
 5. `rg X.Y.Z` to verify all versions bumped
 6. `git tag -a vU.V.W` to tag this commit, then write release notes
 7. use `git shortlog vX.Y.Z..HEAD` to generate changelist for release notes
