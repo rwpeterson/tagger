@@ -263,7 +263,12 @@ fn draw_settings_tab_body<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rec
                 let chs = format!("{0}-{1}", ch_b, ch_a);
                 let rate = numfmt(ct as f64 / (dur as f64 * 5e-9), 0);
                 let width = chunks[4].width;
-                let padding = " ".repeat(width as usize - chs.len() - rate.len() - 3);
+                let padding = " ".repeat(
+                    (width as usize)
+                        .saturating_sub(chs.len())
+                        .saturating_sub(rate.len())
+                        .saturating_sub(3)
+                );
                 let s = format!("{}:{}{}", chs, padding, rate);
                 ListItem::new(s)
             })
@@ -409,7 +414,12 @@ fn draw_singles<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
                 let ch = format!("{}", bit_iter::BitIter::from(m).next().unwrap() + 1);
                 let rate = numfmt(ct as f64 / (dur as f64 * 5e-9), 0);
                 let width = elem.width;
-                let padding = " ".repeat(width as usize - ch.len() - rate.len() - 3);
+                let padding = " ".repeat(
+                    (width as usize)
+                        .saturating_sub(ch.len())
+                        .saturating_sub(rate.len())
+                        .saturating_sub(3)
+                );
                 let text = Paragraph::new(Spans::from(vec![
                     Span::styled(
                         ch,
@@ -474,7 +484,12 @@ fn draw_coincidences<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
                 let chs = format!("{0}-{1}", ch_b, ch_a);
                 let rate = numfmt(ct as f64 / (dur as f64 * 5e-9), 0);
                 let width = elem.width;
-                let padding = " ".repeat(width as usize - chs.len() - rate.len() - 3);
+                let padding = " ".repeat(
+                    (width as usize)
+                        .saturating_sub(chs.len())
+                        .saturating_sub(rate.len())
+                        .saturating_sub(3)
+                );
 
                 let text = Paragraph::new(Spans::from(vec![
                     Span::styled(
