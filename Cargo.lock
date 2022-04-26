@@ -1341,7 +1341,7 @@ dependencies = [
 
 [[package]]
 name = "tagger_capnp"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1349,7 +1349,7 @@ dependencies = [
 
 [[package]]
 name = "tagsave"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "anyhow",
  "argh",
@@ -1372,7 +1372,7 @@ dependencies = [
 
 [[package]]
 name = "tagstream"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "anyhow",
  "argh",
@@ -1403,7 +1403,7 @@ dependencies = [
 
 [[package]]
 name = "tagtools"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "anyhow",
  "argh",
@@ -1426,7 +1426,7 @@ dependencies = [
 
 [[package]]
 name = "tagview"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "anyhow",
  "argh",
@@ -1509,7 +1509,7 @@ dependencies = [
 
 [[package]]
 name = "timetag"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "cxx",
  "cxx-build",
@@ -1804,7 +1804,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "flate2",
  "git-version",
