@@ -11,13 +11,14 @@ use std::{
 
 const GIT_VERSION: &str = git_version::git_version!();
 
-const BINARY_TARGETS: [&'static str; 6] = [
+const BINARY_TARGETS: [&'static str; 7] = [
     "tagsave",
     "tagview",
     "tagstream",
     "tcat",
     "txt2tags",
     "checkrun",
+    "coincidence_histogram",
 ];
 
 // Executables that statically link proprietary vendor code
