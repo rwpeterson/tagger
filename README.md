@@ -199,6 +199,7 @@ ever use Visual Studio directly; Rust will just use the MSVC compiler on its own
 ##### Linux
 
 You need gcc (clang not currently supported due to C++20 features I use).
+Debian Bullseye and Ubuntu 22.04 both have gcc-10, which is sufficient.
 
 For Debian/Ubuntu:
 
@@ -206,7 +207,8 @@ For Debian/Ubuntu:
 sudo apt install build-essential
 ```
 
-**WARNING** To build you must have gcc version 10 or greater due to the C++20
+###### Compiling on Ubuntu 20.04
+To build, you must have gcc version 10 or greater due to the C++20
 features I use. Ubuntu 20.04 ships gcc 9. They do not backport newer gcc versions,
 so a ppa is necessary.
 ```sh
